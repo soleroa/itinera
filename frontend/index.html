@@ -1,60 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Itinera — puente de prueba</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
-  textarea { width: 100%; box-sizing: border-box; padding: 8px; font-size: 14px; }
-  button { margin-top: 8px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
-  button:disabled { cursor: not-allowed; opacity: 0.6; }
-  #respuesta { margin-top: 16px; padding: 12px; border-radius: 6px; background: #f4f4f4; white-space: pre-wrap; }
-  #respuesta.error { background: #fee; color: #900; }
-  #respuesta:empty { display: none; }
-</style>
-</head>
-<body>
-  <h1>Itinera</h1>
-  <p>Página puente para probar el agente sin curl. No es la UI final del producto.</p>
-  <textarea id="mensaje" rows="3" placeholder="Ej: quiero 5 días en Bariloche con 300 mil pesos"></textarea>
-  <br>
-  <button id="enviar">Enviar</button>
-  <div id="respuesta"></div>
-
-  <script>
-    const BACKEND_URL = 'http://localhost:3001/agent';
-    const boton = document.getElementById('enviar');
-    const textarea = document.getElementById('mensaje');
-    const respuestaDiv = document.getElementById('respuesta');
-
-    boton.addEventListener('click', async () => {
-      const message = textarea.value.trim();
-      if (!message) return;
-
-      boton.disabled = true;
-      respuestaDiv.className = '';
-      respuestaDiv.textContent = 'Pensando...';
-
-      try {
-        const res = await fetch(BACKEND_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message }),
-        });
-
-        if (!res.ok) {
-          throw new Error(`El backend respondió ${res.status}`);
-        }
-
-        const data = await res.json();
-        respuestaDiv.textContent = data.answer;
-      } catch (err) {
-        respuestaDiv.className = 'error';
-        respuestaDiv.textContent = `Error: ${err.message}`;
-      } finally {
-        boton.disabled = false;
-      }
-    });
-  </script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Itinera</title>
+  </head>
+  <body class="dark:bg-neutral-950">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

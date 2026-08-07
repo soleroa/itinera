@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { Tool, ToolDefinition } from '../common/tool.interface';
 import { WeatherTool } from './weather.tool';
+import { AccommodationTool } from './accommodation.tool';
 
 @Injectable()
 export class ToolRegistryService {
   private readonly tools: Tool[];
 
-  constructor(weatherTool: WeatherTool) {
-    this.tools = [weatherTool];
+  constructor(weatherTool: WeatherTool, accommodationTool: AccommodationTool) {
+    this.tools = [weatherTool, accommodationTool];
   }
 
   getDefinitions(): ToolDefinition[] {
