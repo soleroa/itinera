@@ -28,7 +28,15 @@ export class ReactAgentService {
       const { toolName, input } = decision.toolCall;
       this.logger.log(`Vuelta ${i + 1}: llamando a "${toolName}" con ${JSON.stringify(input)}`);
 
-      const result = await this.tools.execute(toolName, input);
+      let toolContent: string;
+      try {
+        const result = await this.tools.execute(toolName, input);
+        toolContent = JSON.stringify(result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Tool "${toolName}" falló: ${message}`);
+        toolContent = JSON.stringify({ error: message });
+      }
 
       messages.push({
         role: 'assistant',
@@ -36,7 +44,7 @@ export class ReactAgentService {
       });
       messages.push({
         role: 'tool',
-        content: JSON.stringify(result),
+        content: toolContent,
       });
     }
 

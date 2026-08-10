@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { WeatherTool } from './weather.tool';
 import { AccommodationTool } from './accommodation.tool';
-import { AmadeusClient } from './amadeus-client';
+import { HotelbedsClient } from './hotelbeds-client';
 import { ToolRegistryService } from './tool-registry.service';
 
 @Module({
   providers: [
     WeatherTool,
-    AmadeusClient,
+    HotelbedsClient,
     AccommodationTool,
     ToolRegistryService,
   ],

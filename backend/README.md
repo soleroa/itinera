@@ -126,8 +126,8 @@ backend/
 │   │   └── llm.module.ts          → decide qué implementación usar
 │   └── tools/
 │       ├── weather.tool.ts        → tool de clima (hardcodeada, sin API real)
-│       ├── accommodation.tool.ts  → tool de alojamiento, vía API de Amadeus
-│       ├── amadeus-client.ts      → auth OAuth2 + fetch genérico contra Amadeus
+│       ├── accommodation.tool.ts  → tool de alojamiento, vía API de Hotelbeds
+│       ├── hotelbeds-client.ts    → auth por firma SHA-256 + fetch genérico contra Hotelbeds
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
 ```
@@ -158,11 +158,11 @@ Variables de entorno opcionales (todas tienen default):
 | `PORT` | `3001` | Puerto del servidor Nest |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Dónde está Ollama |
 | `OLLAMA_MODEL` | `qwen3:8b` | Qué modelo pedirle |
-| `AMADEUS_BASE_URL` | `https://test.api.amadeus.com` | Entorno de Amadeus (sandbox por default) |
-| `AMADEUS_API_KEY` | — | Requerida para `search_accommodation`. Se obtiene gratis en [developers.amadeus.com](https://developers.amadeus.com) |
-| `AMADEUS_API_SECRET` | — | Ídem, par de la API key |
+| `HOTELBEDS_BASE_URL` | `https://api.test.hotelbeds.com` | Entorno de Hotelbeds (sandbox por default) |
+| `HOTELBEDS_API_KEY` | — | Requerida para `search_accommodation`. Se obtiene en [developer.hotelbeds.com](https://developer.hotelbeds.com) |
+| `HOTELBEDS_API_SECRET` | — | Ídem, par de la API key |
 
-Sin `AMADEUS_API_KEY`/`AMADEUS_API_SECRET`, la tool `search_accommodation`
+Sin `HOTELBEDS_API_KEY`/`HOTELBEDS_API_SECRET`, la tool `search_accommodation`
 tira error al ejecutarse (no hay fallback a datos hardcodeados).
 
 Probar:
@@ -182,7 +182,7 @@ curl -X POST http://localhost:3001/agent \
 - `OllamaProvider` (única implementación de `LlmProvider` por ahora)
 - Loop ReAct funcionando de punta a punta
 - Una tool de prueba: clima, hardcodeada (sin API real)
-- Tool de alojamiento (`search_accommodation`) vía API real de Amadeus
+- Tool de alojamiento (`search_accommodation`) vía API real de Hotelbeds
   (búsqueda por ciudad + fechas, filtro opcional por presupuesto/noche)
 
 **Pendiente:**

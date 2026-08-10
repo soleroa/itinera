@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { JsonSchemaObject, Tool } from '../common/tool.interface';
-import { AmadeusClient } from './amadeus-client';
+import { HotelbedsClient } from './hotelbeds-client';
 
 interface AccommodationInput {
   ciudad: string;
@@ -18,21 +18,6 @@ interface Alojamiento {
 interface AccommodationOutput {
   alojamientos: Alojamiento[];
 }
-
-interface AmadeusLocation {
-  iataCode: string;
-}
-
-interface AmadeusHotelListEntry {
-  hotelId: string;
-}
-
-interface AmadeusHotelOffer {
-  hotel: { name: string };
-  offers: { price: { total: string; currency: string } }[];
-}
-
-const MAX_HOTELS_TO_PRICE = 20;
 
 @Injectable()
 export class AccommodationTool
@@ -66,32 +51,25 @@ export class AccommodationTool
     required: ['ciudad', 'fechaEntrada', 'fechaSalida'],
   };
 
-  constructor(private readonly amadeus: AmadeusClient) {}
+  constructor(private readonly hotelbeds: HotelbedsClient) {}
 
   async execute(input: AccommodationInput): Promise<AccommodationOutput> {
-    const cityCode = await this.resolveCityCode(input.ciudad);
-    const hotelIds = await this.listHotelIds(cityCode);
+    const destinationCode = await this.hotelbeds.resolveDestinationCode(
+      input.ciudad,
+    );
+    const hotels = await this.hotelbeds.searchAvailability(
+      destinationCode,
+      input.fechaEntrada,
+      input.fechaSalida,
+    );
 
-    if (hotelIds.length === 0) {
-      return { alojamientos: [] };
-    }
-
-    const { data: offers } = await this.amadeus.get<{
-      data: AmadeusHotelOffer[];
-    }>('/v3/shopping/hotel-offers', {
-      hotelIds: hotelIds.join(','),
-      checkInDate: input.fechaEntrada,
-      checkOutDate: input.fechaSalida,
-      adults: '1',
-    });
-
-    const alojamientos = offers
-      .map((offer) => {
-        const price = offer.offers[0]?.price;
+    const alojamientos = hotels
+      .map((hotel) => {
+        const rate = hotel.rooms[0]?.rates[0];
         return {
-          nombre: offer.hotel.name,
-          precioPorNoche: Number(price?.total ?? 0),
-          moneda: price?.currency ?? '',
+          nombre: hotel.name,
+          precioPorNoche: Number(rate?.net ?? 0),
+          moneda: 'USD',
         };
       })
       .filter(
@@ -101,26 +79,5 @@ export class AccommodationTool
       );
 
     return { alojamientos };
-  }
-
-  private async resolveCityCode(ciudad: string): Promise<string> {
-    const { data } = await this.amadeus.get<{ data: AmadeusLocation[] }>(
-      '/v1/reference-data/locations',
-      { subType: 'CITY', keyword: ciudad },
-    );
-
-    if (data.length === 0) {
-      throw new Error(`No se encontró la ciudad "${ciudad}" en Amadeus.`);
-    }
-
-    return data[0].iataCode;
-  }
-
-  private async listHotelIds(cityCode: string): Promise<string[]> {
-    const { data } = await this.amadeus.get<{
-      data: AmadeusHotelListEntry[];
-    }>('/v1/reference-data/locations/hotels/by-city', { cityCode });
-
-    return data.slice(0, MAX_HOTELS_TO_PRICE).map((hotel) => hotel.hotelId);
   }
 }
