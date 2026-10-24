@@ -9,6 +9,8 @@ interface AccommodationInput {
   presupuestoMaxPorNoche?: number;
 }
 
+const MAX_RESULTS = 5;
+
 interface Alojamiento {
   nombre: string;
   precioPorNoche: number;
@@ -76,7 +78,9 @@ export class AccommodationTool
         (alojamiento) =>
           input.presupuestoMaxPorNoche === undefined ||
           alojamiento.precioPorNoche <= input.presupuestoMaxPorNoche,
-      );
+      )
+      .sort((a, b) => a.precioPorNoche - b.precioPorNoche)
+      .slice(0, MAX_RESULTS);
 
     return { alojamientos };
   }
