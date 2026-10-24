@@ -20,6 +20,13 @@ En desarrollo, Vite proxea las requests a `/agent` hacia
 configurar nada más. Para apuntar a otro backend (por ejemplo en producción),
 seteá `VITE_API_URL` — ver `.env.example`.
 
+## Analítica (PostHog)
+
+Opcional: seteá `VITE_POSTHOG_KEY` (y `VITE_POSTHOG_HOST` si usás la región EU o
+self-hosted) en `.env`. Sin key no se envía nada. Se capturan pageviews y los
+eventos `trip_submitted`, `trip_plan_succeeded` y `trip_plan_failed`; no se
+envían destino, origen ni fechas.
+
 ## Estructura
 
 ```
@@ -29,6 +36,7 @@ src/
 │   ├── TripWizard.tsx         → formulario guiado paso a paso
 │   └── TripResult.tsx         → pantalla de carga y de resultado (o error)
 ├── lib/
+│   ├── analytics.ts           → init de PostHog y helper track()
 │   ├── agent-client.ts        → fetch a POST /agent
 │   └── trip-prompt.ts         → arma el pedido en lenguaje natural desde el formulario
 └── types.ts                   → tipo TripRequest

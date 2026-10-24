@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TripWizard } from './components/TripWizard';
 import { TripLoading, TripResult } from './components/TripResult';
 import { askAgent, AgentError } from './lib/agent-client';
+import { track } from './lib/analytics';
 import { buildPrompt } from './lib/trip-prompt';
 import type { TripRequest } from './types';
 
@@ -15,11 +16,17 @@ export default function App() {
 
   const handleSubmit = async (trip: TripRequest) => {
     setPhase({ name: 'loading', trip });
+    track('trip_submitted', {
+      personas: trip.personas,
+      has_budget: trip.presupuesto !== null,
+    });
     try {
       const answer = await askAgent(buildPrompt(trip));
+      track('trip_plan_succeeded');
       setPhase({ name: 'done', trip, answer, error: null });
     } catch (err) {
       const error = err instanceof AgentError ? err.message : 'No se pudo contactar al agente.';
+      track('trip_plan_failed', { error });
       setPhase({ name: 'done', trip, answer: null, error });
     }
   };
