@@ -36,6 +36,10 @@ export class OllamaProvider extends LlmProvider {
       body: JSON.stringify({
         model: this.model,
         stream: false,
+        // qwen3 razona en voz alta por defecto: a ~10 tokens/s cada vuelta tardaba minutos.
+        think: false,
+        // El default (4096) se queda corto con los resultados de las tools.
+        options: { num_ctx: 8192 },
         messages,
         tools: tools.map((tool) => ({
           type: 'function',
