@@ -11,9 +11,10 @@ El frontend (React + Vite + Tailwind) vive en `../frontend` — ver
 ## Stack
 
 - **NestJS + TypeScript**
-- **LLM**: switcheable entre Ollama local (`qwen3:8b`, para desarrollo gratis)
-  y la API de Anthropic (para mayor confiabilidad), sin reescribir la lógica
-  del agente — ver [Por qué `LlmProvider` vive en `agent/`](#por-qué-llmprovider-vive-en-agent).
+- **LLM**: Ollama local (`qwen3:8b`, para desarrollo gratis). El contrato
+  `LlmProvider` permite sumar otro proveedor (ej: la API de Anthropic) sin
+  reescribir la lógica del agente — ver
+  [Por qué `LlmProvider` vive en `agent/`](#por-qué-llmprovider-vive-en-agent).
 
 ## Arquitectura
 
@@ -101,8 +102,8 @@ posible).
 ### Registro de tools (`src/tools/tool-registry.service.ts`)
 
 Por ahora `ToolRegistryService` recibe cada tool por constructor
-(`constructor(weatherTool: WeatherTool) {...}`). Con una sola tool es lo más
-simple y explícito. Con más tools (vuelos, actividades, presupuesto) esa
+(`constructor(weatherTool, accommodationTool, flightsTool) {...}`). Con pocas
+tools es lo más simple y explícito. Con más (actividades, presupuesto) esa
 lista de parámetros va a crecer, y ahí hay que decidir si se migra a un
 patrón de inyección múltiple de Nest (un token compartido con un array de
 tools) — deliberadamente no resuelto todavía.
@@ -131,6 +132,8 @@ backend/
 │       ├── flights.tool.ts        → tool de vuelos, vía Google Flights (fli-js)
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
+└── vendor/
+    └── fli-js/                    → build vendorizado de fli-js (ver VENDORED.md)
 ```
 
 ## Cómo correr
@@ -191,10 +194,6 @@ curl -X POST http://localhost:3001/agent \
   (búsqueda por ciudad + fechas, filtro opcional por presupuesto/noche)
 
 **Pendiente:**
-- `AnthropicProvider` — segunda implementación de `LlmProvider`
-- Mecanismo de switch Ollama↔Anthropic (hoy `llm.module.ts` tiene
-  `OllamaProvider` hardcodeado vía `useClass`; falta un `useFactory` que
-  lea una env var como `LLM_PROVIDER`)
 - Más tools: actividades, presupuesto
 - Manejo de errores más prolijo en el loop (hoy tira excepción sin más si
   se pasa de vueltas)
