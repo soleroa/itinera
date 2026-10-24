@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 *.tsbuildinfo
+!vendor/fli-js/dist/

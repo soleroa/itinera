@@ -128,6 +128,7 @@ backend/
 │       ├── weather.tool.ts        → tool de clima (hardcodeada, sin API real)
 │       ├── accommodation.tool.ts  → tool de alojamiento, vía API de Hotelbeds
 │       ├── hotelbeds-client.ts    → auth por firma SHA-256 + fetch genérico contra Hotelbeds
+│       ├── flights.tool.ts        → tool de vuelos, vía Google Flights (fli-js)
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
 ```
@@ -182,6 +183,10 @@ curl -X POST http://localhost:3001/agent \
 - `OllamaProvider` (única implementación de `LlmProvider` por ahora)
 - Loop ReAct funcionando de punta a punta
 - Una tool de prueba: clima, hardcodeada (sin API real)
+- Tool de vuelos (`search_flights`) vía Google Flights con [fli-js](vendor/fli-js/VENDORED.md)
+  (sin API key; ciudad → aeropuertos, ida o ida y vuelta, filtro por presupuesto
+  total, devuelve los 5 más baratos). Es scraping no oficial: puede romperse si
+  Google cambia su formato, y requiere Node >= 22.12 (carga un paquete ESM)
 - Tool de alojamiento (`search_accommodation`) vía API real de Hotelbeds
   (búsqueda por ciudad + fechas, filtro opcional por presupuesto/noche)
 
@@ -190,6 +195,6 @@ curl -X POST http://localhost:3001/agent \
 - Mecanismo de switch Ollama↔Anthropic (hoy `llm.module.ts` tiene
   `OllamaProvider` hardcodeado vía `useClass`; falta un `useFactory` que
   lea una env var como `LLM_PROVIDER`)
-- Más tools: vuelos, actividades, presupuesto
+- Más tools: actividades, presupuesto
 - Manejo de errores más prolijo en el loop (hoy tira excepción sin más si
   se pasa de vueltas)
