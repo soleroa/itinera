@@ -1,6 +1,8 @@
 # Itinera — frontend
 
-UI de chat para hablar con el agente de viajes. React + Vite + Tailwind, sin
+UI para planear un viaje con el agente: un formulario guiado, de a una pregunta
+por pantalla (destino, origen, fechas, personas y presupuesto), y una pantalla de
+resultado. No es un chat. React + Vite + Tailwind, sin
 routing ni state management extra — es una sola pantalla.
 
 ## Cómo correr
@@ -22,12 +24,14 @@ seteá `VITE_API_URL` — ver `.env.example`.
 
 ```
 src/
-├── App.tsx                    → estado del chat (mensajes, envío, loading)
+├── App.tsx                    → fase de la pantalla (planning / loading / done)
 ├── components/
-│   ├── ChatInput.tsx          → textarea + botón de enviar
-│   └── MessageBubble.tsx      → burbuja de mensaje (usuario/agente/error/pending)
-├── lib/agent-client.ts        → fetch a POST /agent
-└── types.ts                   → tipo ChatMessage
+│   ├── TripWizard.tsx         → formulario guiado paso a paso
+│   └── TripResult.tsx         → pantalla de carga y de resultado (o error)
+├── lib/
+│   ├── agent-client.ts        → fetch a POST /agent
+│   └── trip-prompt.ts         → arma el pedido en lenguaje natural desde el formulario
+└── types.ts                   → tipo TripRequest
 ```
 
 ## Comandos

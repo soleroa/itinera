@@ -10,7 +10,7 @@ suficiente información → responde.
 ```
 itinera/
 ├── backend/    → API NestJS con el agente ReAct (ver backend/README.md para arquitectura)
-└── frontend/   → UI de chat en React + Vite + Tailwind (ver frontend/README.md)
+└── frontend/   → UI de planificación guiada en React + Vite + Tailwind (ver frontend/README.md)
 ```
 
 ## Cómo correr
