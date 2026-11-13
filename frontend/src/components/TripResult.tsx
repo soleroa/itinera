@@ -1,4 +1,4 @@
-import type { TripRequest } from '../types';
+import type { AgentResponse, Accommodation, Flight, TripRequest } from '../types';
 import { formatDate, formatPesos } from '../lib/trip-prompt';
 
 export function TripLoading({ trip }: { trip: TripRequest }) {
@@ -19,12 +19,12 @@ export function TripLoading({ trip }: { trip: TripRequest }) {
 
 export function TripResult({
   trip,
-  answer,
+  result,
   error,
   onReset,
 }: {
   trip: TripRequest;
-  answer: string | null;
+  result: AgentResponse | null;
   error: string | null;
   onReset: () => void;
 }) {
@@ -53,6 +53,22 @@ export function TripResult({
         </div>
       </div>
 
+      {!error && result && result.flights.length > 0 && (
+        <Section title="Vuelos recomendados">
+          {result.flights.map((f, i) => (
+            <FlightCard key={i} flight={f} best={i === 0} />
+          ))}
+        </Section>
+      )}
+
+      {!error && result && result.accommodations.length > 0 && (
+        <Section title="Alojamientos recomendados">
+          {result.accommodations.map((a, i) => (
+            <AccommodationCard key={i} stay={a} best={i === 0} />
+          ))}
+        </Section>
+      )}
+
       <article
         className={`whitespace-pre-wrap rounded-3xl p-6 leading-relaxed shadow-sm ring-1 sm:p-8 ${
           error
@@ -60,7 +76,7 @@ export function TripResult({
             : 'bg-white text-neutral-800 ring-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:ring-neutral-800'
         }`}
       >
-        {error ?? answer}
+        {error ?? result?.answer}
       </article>
 
       <button
@@ -70,5 +86,116 @@ export function TripResult({
         Planear otro viaje
       </button>
     </div>
+  );
+}
+
+const usd = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+
+function formatUsd(amount: number): string {
+  return `USD ${usd.format(amount)}`;
+}
+
+/** Los horarios llegan como "2026-11-28T08:40:00-03:00": se muestran tal cual, en hora local. */
+function formatDateTime(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d\d)-(\d\d)T(\d\d:\d\d)/);
+  if (!m) return iso;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('es-AR', {
+    day: 'numeric',
+    month: 'short',
+  });
+  return `${day}, ${m[4]}`;
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{title}</h3>
+      <div className="flex flex-col gap-3">{children}</div>
+    </section>
+  );
+}
+
+function Card({
+  title,
+  lines,
+  price,
+  priceNote,
+  href,
+  cta,
+  best,
+}: {
+  title: string;
+  lines: string[];
+  price: string;
+  priceNote: string;
+  href: string;
+  cta: string;
+  best: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-neutral-200 sm:flex-row sm:items-center sm:justify-between dark:bg-neutral-900 dark:ring-neutral-800">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-neutral-900 dark:text-neutral-50">{title}</span>
+          {best && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+              Más barato
+            </span>
+          )}
+        </div>
+        {lines.map((line) => (
+          <span key={line} className="text-sm text-neutral-500 dark:text-neutral-400">
+            {line}
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:gap-2">
+        <div className="flex flex-col sm:items-end">
+          <span className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">{price}</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">{priceNote}</span>
+        </div>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+        >
+          {cta}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
+  return (
+    <Card
+      title={flight.aerolinea}
+      lines={[
+        `Ida: ${formatDateTime(flight.salidaIda)} → ${formatDateTime(flight.llegadaIda)}`,
+        flight.escalas === 0
+          ? 'Directo'
+          : `${flight.escalas} ${flight.escalas === 1 ? 'escala' : 'escalas'}`,
+      ]}
+      price={formatUsd(flight.precioTotal)}
+      priceNote="total, todos los pasajeros"
+      href={flight.enlace}
+      cta="Ver vuelo"
+      best={best}
+    />
+  );
+}
+
+function AccommodationCard({ stay, best }: { stay: Accommodation; best: boolean }) {
+  return (
+    <Card
+      title={stay.nombre}
+      lines={[`${formatUsd(stay.precioTotal)} por toda la estadía`]}
+      price={`${formatUsd(stay.precioPorNoche)} / noche`}
+      priceNote="para 2 adultos"
+      href={stay.enlace}
+      cta="Reservar"
+      best={best}
+    />
   );
 }

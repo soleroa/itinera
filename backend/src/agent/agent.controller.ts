@@ -7,7 +7,6 @@ export class AgentController {
 
   @Post()
   async chat(@Body('message') message: string) {
-    const answer = await this.agent.run(message);
-    return { answer };
+    return this.agent.run(message);
   }
 }

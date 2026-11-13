@@ -4,12 +4,12 @@ import { TripLoading, TripResult } from './components/TripResult';
 import { askAgent, AgentError } from './lib/agent-client';
 import { track } from './lib/analytics';
 import { buildPrompt } from './lib/trip-prompt';
-import type { TripRequest } from './types';
+import type { AgentResponse, TripRequest } from './types';
 
 type Phase =
   | { name: 'planning' }
   | { name: 'loading'; trip: TripRequest }
-  | { name: 'done'; trip: TripRequest; answer: string | null; error: string | null };
+  | { name: 'done'; trip: TripRequest; result: AgentResponse | null; error: string | null };
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>({ name: 'planning' });
@@ -21,13 +21,13 @@ export default function App() {
       has_budget: trip.presupuesto !== null,
     });
     try {
-      const answer = await askAgent(buildPrompt(trip));
+      const result = await askAgent(buildPrompt(trip));
       track('trip_plan_succeeded');
-      setPhase({ name: 'done', trip, answer, error: null });
+      setPhase({ name: 'done', trip, result, error: null });
     } catch (err) {
       const error = err instanceof AgentError ? err.message : 'No se pudo contactar al agente.';
       track('trip_plan_failed', { error });
-      setPhase({ name: 'done', trip, answer: null, error });
+      setPhase({ name: 'done', trip, result: null, error });
     }
   };
 
@@ -45,7 +45,7 @@ export default function App() {
         {phase.name === 'done' && (
           <TripResult
             trip={phase.trip}
-            answer={phase.answer}
+            result={phase.result}
             error={phase.error}
             onReset={() => setPhase({ name: 'planning' })}
           />

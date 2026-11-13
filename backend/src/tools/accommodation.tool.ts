@@ -18,6 +18,8 @@ interface Alojamiento {
   precioTotal: number;
   precioPorNoche: number;
   moneda: string;
+  /** Búsqueda en Booking.com de este hotel y fechas, para reservar. */
+  enlace: string;
 }
 
 interface AccommodationOutput {
@@ -85,6 +87,7 @@ export class AccommodationTool
           precioTotal,
           precioPorNoche: Math.round(precioTotal / noches),
           moneda: 'USD',
+          enlace: this.bookingUrl(hotel.name, input),
         };
       })
       .filter(
@@ -96,5 +99,17 @@ export class AccommodationTool
       .slice(0, MAX_RESULTS);
 
     return { alojamientos };
+  }
+
+  private bookingUrl(nombre: string, input: AccommodationInput): string {
+    const params = new URLSearchParams({
+      ss: `${nombre}, ${input.ciudad}`,
+      checkin: input.fechaEntrada,
+      checkout: input.fechaSalida,
+      group_adults: '2',
+      no_rooms: '1',
+      selected_currency: 'USD',
+    });
+    return `https://www.booking.com/searchresults.es.html?${params}`;
   }
 }

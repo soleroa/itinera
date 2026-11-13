@@ -7,6 +7,7 @@ import {
   SeatType,
   SortBy,
   buildFlightSegments,
+  googleFlightsUrl,
   searchAirports,
 } from 'fli-js';
 import { JsonSchemaObject, Tool } from '../common/tool.interface';
@@ -27,6 +28,8 @@ interface Vuelo {
   escalas: number;
   salidaIda: string;
   llegadaIda: string;
+  /** Link a Google Flights con la ruta y fechas ya cargadas, para reservar. */
+  enlace: string;
 }
 
 interface FlightsOutput {
@@ -110,6 +113,14 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     const destinations = this.resolveAirports(input.destino);
     const pasajeros = input.pasajeros ?? 1;
 
+    const enlace = googleFlightsUrl(
+      input.origen,
+      input.destino,
+      input.fechaIda,
+      input.fechaVuelta,
+      { currency: 'USD', language: 'es', country: 'AR' },
+    );
+
     const results = await this.search(
       origins,
       destinations,
@@ -126,13 +137,14 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
             const total = Array.isArray(result)
               ? result[result.length - 1]
               : result;
-            return this.toVuelo(ida, total.price, total.currency);
+            return this.toVuelo(ida, total.price, total.currency, enlace);
           })
         : await this.searchLegsSeparately(
             input,
             origins,
             destinations,
             pasajeros,
+            enlace,
           );
 
     return {
@@ -157,6 +169,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     origins: Airport[],
     destinations: Airport[],
     pasajeros: number,
+    enlace: string,
   ): Promise<Vuelo[]> {
     const ida = input.fechaVuelta
       ? await this.search(
@@ -189,7 +202,12 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
       ),
     );
     return (ida as FlightResult[]).map((v) =>
-      this.toVuelo(v, (v.price ?? Number.NaN) + vueltaMasBarata, v.currency),
+      this.toVuelo(
+        v,
+        (v.price ?? Number.NaN) + vueltaMasBarata,
+        v.currency,
+        enlace,
+      ),
     );
   }
 
@@ -227,6 +245,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     ida: FlightResult,
     precioTotal: number | null,
     moneda: string | null,
+    enlace: string,
   ): Vuelo {
     const first = ida.legs[0];
     const last = ida.legs[ida.legs.length - 1];
@@ -238,6 +257,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
       escalas: ida.stops,
       salidaIda: local?.salida ?? first.departure_datetime.toISOString(),
       llegadaIda: local?.llegada ?? last.arrival_datetime.toISOString(),
+      enlace,
     };
   }
 
