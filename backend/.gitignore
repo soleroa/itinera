@@ -3,3 +3,4 @@ dist/
 .env
 *.tsbuildinfo
 !vendor/fli-js/dist/
+.cache/

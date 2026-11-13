@@ -165,6 +165,7 @@ Variables de entorno opcionales (todas tienen default):
 | `HOTELBEDS_BASE_URL` | `https://api.test.hotelbeds.com` | Entorno de Hotelbeds (sandbox por default) |
 | `HOTELBEDS_API_KEY` | — | Requerida para `search_accommodation`. Se obtiene en [developer.hotelbeds.com](https://developer.hotelbeds.com) |
 | `HOTELBEDS_API_SECRET` | — | Ídem, par de la API key |
+| `HOTELBEDS_CACHE_DIR` | `backend/.cache` | Dónde se guarda la lista de destinos de Hotelbeds. Se baja una sola vez porque la Content API tiene una cuota chica |
 
 Sin `HOTELBEDS_API_KEY`/`HOTELBEDS_API_SECRET`, la tool `search_accommodation`
 tira error al ejecutarse (no hay fallback a datos hardcodeados).

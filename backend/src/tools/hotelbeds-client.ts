@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 interface HotelbedsDestination {
   code: string;
@@ -30,6 +32,12 @@ interface HotelbedsAvailabilityResponse {
 }
 
 const DESTINATIONS_PAGE_SIZE = 1000;
+// La Content API tiene una cuota chica y aparte: la lista de destinos casi no cambia,
+// así que se baja una sola vez y se guarda en disco para que sobreviva a los reinicios.
+const DESTINATIONS_CACHE_FILE = join(
+  process.env.HOTELBEDS_CACHE_DIR ?? join(process.cwd(), '.cache'),
+  'hotelbeds-destinations.json',
+);
 
 @Injectable()
 export class HotelbedsClient {
@@ -65,6 +73,12 @@ export class HotelbedsClient {
       return this.destinationsCache;
     }
 
+    const cached = await this.readDestinationsFromDisk();
+    if (cached) {
+      this.destinationsCache = cached;
+      return cached;
+    }
+
     const destinations: HotelbedsDestination[] = [];
     let from = 1;
     let total = Infinity;
@@ -89,7 +103,32 @@ export class HotelbedsClient {
     }
 
     this.destinationsCache = destinations;
+    await this.writeDestinationsToDisk(destinations);
     return destinations;
+  }
+
+  private async readDestinationsFromDisk(): Promise<
+    HotelbedsDestination[] | null
+  > {
+    try {
+      const data = JSON.parse(
+        await readFile(DESTINATIONS_CACHE_FILE, 'utf8'),
+      ) as HotelbedsDestination[];
+      return Array.isArray(data) && data.length > 0 ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeDestinationsToDisk(
+    destinations: HotelbedsDestination[],
+  ): Promise<void> {
+    try {
+      await mkdir(dirname(DESTINATIONS_CACHE_FILE), { recursive: true });
+      await writeFile(DESTINATIONS_CACHE_FILE, JSON.stringify(destinations));
+    } catch {
+      // Sin caché en disco todo sigue andando, solo que se vuelve a bajar al reiniciar.
+    }
   }
 
   async resolveDestinationCode(ciudad: string): Promise<string> {
