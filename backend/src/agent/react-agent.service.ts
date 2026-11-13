@@ -1,6 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { LlmMessage, LlmProvider } from './llm-provider';
-import { ToolRegistryService } from '../tools/tool-registry.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { LlmMessage, LlmProvider } from "./llm-provider";
+import { ToolRegistryService } from "../tools/tool-registry.service";
+
+const SYSTEM_PROMPT = `Sos Itinera, un agente de viajes. Respondé siempre en español rioplatense.
+
+Para armar un viaje:
+1. Llamá a search_flights con el origen, el destino y las fechas de ida y vuelta.
+2. Llamá a search_accommodation con el destino y las fechas de entrada y salida.
+3. Con los resultados de las dos tools, escribí el itinerario final: el vuelo y el alojamiento que recomendás, el costo estimado y qué hacer cada día.
+
+Reglas:
+- Los precios que devuelven las tools están en USD y el presupuesto del usuario en pesos argentinos. No tenés tipo de cambio: mostrá los precios en USD, avisá que están en dólares y no los compares con el presupuesto.
+- No uses los parámetros de presupuesto de las tools.
+- Usá solo datos que devolvieron las tools. Si una tool falla o no devuelve resultados, decilo en vez de inventar precios.
+- No expliques qué tools llamaste: respondé directamente con el itinerario.`;
 
 @Injectable()
 export class ReactAgentService {
@@ -13,7 +26,10 @@ export class ReactAgentService {
   ) {}
 
   async run(userMessage: string): Promise<string> {
-    const messages: LlmMessage[] = [{ role: 'user', content: userMessage }];
+    const messages: LlmMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ];
 
     for (let i = 0; i < this.maxIterations; i++) {
       const decision = await this.llm.decide(
@@ -21,12 +37,14 @@ export class ReactAgentService {
         this.tools.getDefinitions(),
       );
 
-      if (decision.type === 'final_answer') {
+      if (decision.type === "final_answer") {
         return decision.content;
       }
 
       const { toolName, input } = decision.toolCall;
-      this.logger.log(`Vuelta ${i + 1}: llamando a "${toolName}" con ${JSON.stringify(input)}`);
+      this.logger.log(
+        `Vuelta ${i + 1}: llamando a "${toolName}" con ${JSON.stringify(input)}`,
+      );
 
       let toolContent: string;
       try {
@@ -39,12 +57,14 @@ export class ReactAgentService {
       }
 
       messages.push({
-        role: 'assistant',
-        content: `Llamé a la tool "${toolName}" con ${JSON.stringify(input)}`,
+        role: "assistant",
+        content: "",
+        toolCall: { toolName, input },
       });
       messages.push({
-        role: 'tool',
+        role: "tool",
         content: toolContent,
+        toolName,
       });
     }
 

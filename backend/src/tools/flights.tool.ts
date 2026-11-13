@@ -35,6 +35,38 @@ interface FlightsOutput {
 
 const MAX_RESULTS = 5;
 
+/**
+ * searchAirports no distingue países ("Santa Fe" devuelve el de Nuevo México),
+ * así que las ciudades argentinas más buscadas se resuelven acá primero.
+ */
+const ARGENTINE_AIRPORTS: Record<string, string[]> = {
+  "santa fe": ["SFN"],
+  rosario: ["ROS"],
+  cordoba: ["COR"],
+  mendoza: ["MDZ"],
+  tucuman: ["TUC"],
+  salta: ["SLA"],
+  jujuy: ["JUJ"],
+  neuquen: ["NQN"],
+  bariloche: ["BRC"],
+  "san carlos de bariloche": ["BRC"],
+  ushuaia: ["USH"],
+  "el calafate": ["FTE"],
+  iguazu: ["IGR"],
+  "puerto iguazu": ["IGR"],
+  "mar del plata": ["MDQ"],
+  parana: ["PRA"],
+  corrientes: ["CNQ"],
+  posadas: ["PSS"],
+  resistencia: ["RES"],
+  "comodoro rivadavia": ["CRD"],
+  trelew: ["REL"],
+  "puerto madryn": ["PMY"],
+  "san juan": ["UAQ"],
+  "san luis": ["LUQ"],
+  "santiago del estero": ["SDE"],
+};
+
 @Injectable()
 export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
   name = "search_flights";
@@ -156,6 +188,9 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
 
   /** Una ciudad con varios aeropuertos (ej: Buenos Aires) se busca en todos ellos. */
   private resolveAirports(lugar: string): Airport[] {
+    const argentine = ARGENTINE_AIRPORTS[this.normalize(lugar)];
+    if (argentine) return argentine as Airport[];
+
     const matches = searchAirports(lugar, 5);
     if (matches.length === 0) {
       throw new Error(`No se encontró "${lugar}" como ciudad o aeropuerto.`);
@@ -163,5 +198,13 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     return matches[0].match_type === "city"
       ? matches.filter((m) => m.match_type === "city").map((m) => m.code)
       : [matches[0].code];
+  }
+
+  private normalize(text: string): string {
+    return text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
   }
 }

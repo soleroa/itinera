@@ -1,10 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import {
-  LlmDecision,
-  LlmMessage,
-  LlmProvider,
-} from '../agent/llm-provider';
-import { ToolDefinition } from '../common/tool.interface';
+import { Injectable } from "@nestjs/common";
+import { LlmDecision, LlmMessage, LlmProvider } from "../agent/llm-provider";
+import { ToolDefinition } from "../common/tool.interface";
 
 interface OllamaToolCall {
   function: {
@@ -23,16 +19,42 @@ interface OllamaChatResponse {
 @Injectable()
 export class OllamaProvider extends LlmProvider {
   private readonly baseUrl =
-    process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-  private readonly model = process.env.OLLAMA_MODEL ?? 'qwen3:8b';
+    process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+  private readonly model = process.env.OLLAMA_MODEL ?? "qwen3:8b";
+
+  /** Pasa las llamadas a tools en el formato nativo de Ollama, no como texto. */
+  private toOllamaMessage(message: LlmMessage) {
+    if (message.toolCall) {
+      return {
+        role: "assistant",
+        content: message.content,
+        tool_calls: [
+          {
+            function: {
+              name: message.toolCall.toolName,
+              arguments: message.toolCall.input,
+            },
+          },
+        ],
+      };
+    }
+    if (message.role === "tool") {
+      return {
+        role: "tool",
+        content: message.content,
+        tool_name: message.toolName,
+      };
+    }
+    return { role: message.role, content: message.content };
+  }
 
   async decide(
     messages: LlmMessage[],
     tools: ToolDefinition[],
   ): Promise<LlmDecision> {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: this.model,
         stream: false,
@@ -40,9 +62,9 @@ export class OllamaProvider extends LlmProvider {
         think: false,
         // El default (4096) se queda corto con los resultados de las tools.
         options: { num_ctx: 8192 },
-        messages,
+        messages: messages.map((message) => this.toOllamaMessage(message)),
         tools: tools.map((tool) => ({
-          type: 'function',
+          type: "function",
           function: {
             name: tool.name,
             description: tool.description,
@@ -63,7 +85,7 @@ export class OllamaProvider extends LlmProvider {
 
     if (toolCall) {
       return {
-        type: 'tool_call',
+        type: "tool_call",
         toolCall: {
           toolName: toolCall.function.name,
           input: toolCall.function.arguments,
@@ -71,6 +93,6 @@ export class OllamaProvider extends LlmProvider {
       };
     }
 
-    return { type: 'final_answer', content: data.message.content };
+    return { type: "final_answer", content: data.message.content };
   }
 }
