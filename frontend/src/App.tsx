@@ -18,7 +18,7 @@ export default function App() {
     setPhase({ name: 'loading', trip });
     track('trip_submitted', {
       personas: trip.personas,
-      has_budget: trip.presupuesto !== null,
+      has_budget: trip.presupuestoMin !== null || trip.presupuestoMax !== null,
     });
     try {
       const result = await askAgent(buildPrompt(trip));

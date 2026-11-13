@@ -8,7 +8,8 @@ type Draft = {
   salida: string;
   vuelta: string;
   personas: number;
-  presupuesto: string;
+  presupuestoMin: string;
+  presupuestoMax: string;
 };
 
 const STEPS = ['destino', 'origen', 'fechas', 'detalles'] as const;
@@ -26,7 +27,8 @@ export function TripWizard({ onSubmit }: { onSubmit: (trip: TripRequest) => void
     salida: '',
     vuelta: '',
     personas: 2,
-    presupuesto: '',
+    presupuestoMin: '',
+    presupuestoMax: '',
   });
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
@@ -37,7 +39,9 @@ export function TripWizard({ onSubmit }: { onSubmit: (trip: TripRequest) => void
     draft.destino.trim() !== '',
     draft.origen.trim() !== '',
     draft.salida !== '' && draft.vuelta !== '' && draft.vuelta >= draft.salida,
-    true,
+    draft.presupuestoMin === '' ||
+      draft.presupuestoMax === '' ||
+      Number(draft.presupuestoMin) <= Number(draft.presupuestoMax),
   ][step];
 
   const handleSubmit = (e: FormEvent) => {
@@ -53,7 +57,8 @@ export function TripWizard({ onSubmit }: { onSubmit: (trip: TripRequest) => void
       salida: draft.salida,
       vuelta: draft.vuelta,
       personas: draft.personas,
-      presupuesto: draft.presupuesto ? Number(draft.presupuesto) : null,
+      presupuestoMin: draft.presupuestoMin ? Number(draft.presupuestoMin) : null,
+      presupuestoMax: draft.presupuestoMax ? Number(draft.presupuestoMax) : null,
     });
   };
 
@@ -151,19 +156,39 @@ export function TripWizard({ onSubmit }: { onSubmit: (trip: TripRequest) => void
               </div>
             </div>
 
-            <label className="flex flex-col gap-1.5 text-sm text-neutral-500 dark:text-neutral-400">
-              Presupuesto total en pesos
-              <input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                autoFocus
-                value={draft.presupuesto}
-                onChange={(e) => update('presupuesto', e.target.value)}
-                placeholder="300000"
-                className={inputClass}
-              />
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm text-neutral-500 dark:text-neutral-400">
+                Rango de presupuesto total en pesos
+              </span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  autoFocus
+                  aria-label="Presupuesto mínimo"
+                  value={draft.presupuestoMin}
+                  onChange={(e) => update('presupuestoMin', e.target.value)}
+                  placeholder="Mínimo, ej: 200000"
+                  className={inputClass}
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  aria-label="Presupuesto máximo"
+                  value={draft.presupuestoMax}
+                  onChange={(e) => update('presupuestoMax', e.target.value)}
+                  placeholder="Máximo, ej: 400000"
+                  className={inputClass}
+                />
+              </div>
+              {!canContinue && (
+                <span className="text-sm text-red-600 dark:text-red-400">
+                  El mínimo no puede ser mayor que el máximo.
+                </span>
+              )}
+            </div>
           </div>
         </Question>
       )}

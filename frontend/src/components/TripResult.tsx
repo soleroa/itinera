@@ -1,5 +1,5 @@
 import type { AgentResponse, Accommodation, Flight, TripRequest } from '../types';
-import { formatDate, formatPesos } from '../lib/trip-prompt';
+import { formatBudget, formatDate } from '../lib/trip-prompt';
 
 export function TripLoading({ trip }: { trip: TripRequest }) {
   return (
@@ -32,7 +32,7 @@ export function TripResult({
     `${trip.origen} → ${trip.destino}`,
     `${formatDate(trip.salida)} – ${formatDate(trip.vuelta)}`,
     trip.personas === 1 ? '1 persona' : `${trip.personas} personas`,
-    trip.presupuesto === null ? 'Sin presupuesto definido' : formatPesos(trip.presupuesto),
+    formatBudget(trip) ?? 'Sin presupuesto definido',
   ];
 
   return (

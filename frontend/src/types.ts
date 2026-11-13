@@ -4,8 +4,9 @@ export interface TripRequest {
   salida: string;
   vuelta: string;
   personas: number;
-  /** Presupuesto total en pesos argentinos; null si el usuario no quiso fijar uno. */
-  presupuesto: number | null;
+  /** Rango de presupuesto total en pesos argentinos; null en el extremo que el usuario no fijó. */
+  presupuestoMin: number | null;
+  presupuestoMax: number | null;
 }
 
 export interface Flight {
