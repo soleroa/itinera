@@ -32,6 +32,14 @@ interface HotelbedsAvailabilityResponse {
 }
 
 const DESTINATIONS_PAGE_SIZE = 1000;
+// Destinos con el código ya verificado contra la API. Se resuelven sin gastar la cuota
+// de la Content API (y cuando está agotada). Ojo: el código no siempre coincide con el
+// IATA del aeropuerto (Bariloche es BCH, no BRC).
+const KNOWN_DESTINATIONS: Record<string, string> = {
+  bariloche: 'BCH',
+  'buenos aires': 'BUE',
+  madrid: 'MAD',
+};
 // La Content API tiene una cuota chica y aparte: la lista de destinos casi no cambia,
 // así que se baja una sola vez y se guarda en disco para que sobreviva a los reinicios.
 const DESTINATIONS_CACHE_FILE = join(
@@ -132,8 +140,13 @@ export class HotelbedsClient {
   }
 
   async resolveDestinationCode(ciudad: string): Promise<string> {
-    const destinations = await this.fetchAllDestinations();
     const needle = ciudad.trim().toLowerCase();
+    const known = KNOWN_DESTINATIONS[needle];
+    if (known) {
+      return known;
+    }
+
+    const destinations = await this.fetchAllDestinations();
     const match = destinations.find((d) =>
       d.name.content.toLowerCase().includes(needle),
     );
