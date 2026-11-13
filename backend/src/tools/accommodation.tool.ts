@@ -11,8 +11,11 @@ interface AccommodationInput {
 
 const MAX_RESULTS = 5;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 interface Alojamiento {
   nombre: string;
+  precioTotal: number;
   precioPorNoche: number;
   moneda: string;
 }
@@ -65,12 +68,22 @@ export class AccommodationTool
       input.fechaSalida,
     );
 
+    const noches = Math.max(
+      1,
+      Math.round(
+        (Date.parse(input.fechaSalida) - Date.parse(input.fechaEntrada)) /
+          MS_PER_DAY,
+      ),
+    );
+
     const alojamientos = hotels
       .map((hotel) => {
-        const rate = hotel.rooms[0]?.rates[0];
+        // Hotelbeds devuelve en `net` el precio de toda la estadía, no por noche.
+        const precioTotal = Number(hotel.rooms[0]?.rates[0]?.net ?? 0);
         return {
           nombre: hotel.name,
-          precioPorNoche: Number(rate?.net ?? 0),
+          precioTotal,
+          precioPorNoche: Math.round(precioTotal / noches),
           moneda: 'USD',
         };
       })
