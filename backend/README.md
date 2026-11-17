@@ -127,8 +127,8 @@ backend/
 │   │   └── llm.module.ts          → decide qué implementación usar
 │   └── tools/
 │       ├── weather.tool.ts        → tool de clima (hardcodeada, sin API real)
-│       ├── accommodation.tool.ts  → tool de alojamiento, vía API de Hotelbeds
-│       ├── hotelbeds-client.ts    → auth por firma SHA-256 + fetch genérico contra Hotelbeds
+│       ├── accommodation.tool.ts  → tool de alojamiento, precios reales de Google Hotels
+│       ├── serpapi-hotels-client.ts → cliente de SerpApi (engine google_hotels)
 │       ├── flights.tool.ts        → tool de vuelos, vía Google Flights (fli-js)
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
@@ -162,13 +162,12 @@ Variables de entorno opcionales (todas tienen default):
 | `PORT` | `3001` | Puerto del servidor Nest |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Dónde está Ollama |
 | `OLLAMA_MODEL` | `qwen3:8b` | Qué modelo pedirle |
-| `HOTELBEDS_BASE_URL` | `https://api.test.hotelbeds.com` | Entorno de Hotelbeds (sandbox por default) |
-| `HOTELBEDS_API_KEY` | — | Requerida para `search_accommodation`. Se obtiene en [developer.hotelbeds.com](https://developer.hotelbeds.com) |
-| `HOTELBEDS_API_SECRET` | — | Ídem, par de la API key |
-| `HOTELBEDS_CACHE_DIR` | `backend/.cache` | Dónde se guarda la lista de destinos de Hotelbeds. Se baja una sola vez porque la Content API tiene una cuota chica |
+| `SERPAPI_KEY` | — | Requerida para `search_accommodation`. Se obtiene en [serpapi.com](https://serpapi.com/manage-api-key) (plan gratuito con búsquedas limitadas por mes) |
+| `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | Endpoint de SerpApi |
 
-Sin `HOTELBEDS_API_KEY`/`HOTELBEDS_API_SECRET`, la tool `search_accommodation`
-tira error al ejecutarse (no hay fallback a datos hardcodeados).
+Sin `SERPAPI_KEY`, la tool `search_accommodation` tira error al ejecutarse
+(no hay fallback a datos hardcodeados). Cada búsqueda de alojamiento consume
+una búsqueda de la cuota de SerpApi.
 
 Probar:
 
@@ -191,8 +190,10 @@ curl -X POST http://localhost:3001/agent \
   (sin API key; ciudad → aeropuertos, ida o ida y vuelta, filtro por presupuesto
   total, devuelve los 5 más baratos). Es scraping no oficial: puede romperse si
   Google cambia su formato, y requiere Node >= 22.12 (carga un paquete ESM)
-- Tool de alojamiento (`search_accommodation`) vía API real de Hotelbeds
-  (búsqueda por ciudad + fechas, filtro opcional por presupuesto/noche)
+- Tool de alojamiento (`search_accommodation`) vía Google Hotels con
+  [SerpApi](https://serpapi.com): precios y disponibilidad reales por ciudad,
+  fechas y cantidad de huéspedes, con link al sitio de cada alojamiento y filtro
+  opcional por presupuesto/noche
 
 **Pendiente:**
 - Más tools: actividades, presupuesto

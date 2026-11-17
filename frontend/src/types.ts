@@ -21,6 +21,9 @@ export interface Flight {
 
 export interface Accommodation {
   nombre: string;
+  tipo: 'hotel' | 'alquiler';
+  categoria?: string;
+  puntaje?: number;
   precioTotal: number;
   precioPorNoche: number;
   moneda: string;

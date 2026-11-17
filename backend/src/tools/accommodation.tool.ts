@@ -1,24 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { JsonSchemaObject, Tool } from '../common/tool.interface';
-import { HotelbedsClient } from './hotelbeds-client';
+import { SerpApiHotelsClient } from './serpapi-hotels-client';
 
 interface AccommodationInput {
   ciudad: string;
   fechaEntrada: string;
   fechaSalida: string;
+  pasajeros?: number;
   presupuestoMaxPorNoche?: number;
 }
 
 const MAX_RESULTS = 5;
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
 interface Alojamiento {
   nombre: string;
+  tipo: 'hotel' | 'alquiler';
+  /** Ej: "Hotel de 3 estrellas"; ausente si Google no la informa. */
+  categoria?: string;
+  /** Puntaje de huéspedes sobre 5; ausente si no hay. */
+  puntaje?: number;
   precioTotal: number;
   precioPorNoche: number;
   moneda: string;
-  /** Búsqueda en Booking.com de la ciudad y fechas (no del hotel: puede no estar disponible allá). */
+  /** Sitio del alojamiento o, si no tiene, su ficha en Google Hotels. */
   enlace: string;
 }
 
@@ -49,6 +53,10 @@ export class AccommodationTool
         type: 'string',
         description: 'Fecha de check-out en formato YYYY-MM-DD',
       },
+      pasajeros: {
+        type: 'number',
+        description: 'Cantidad de huéspedes adultos (opcional, por defecto 2)',
+      },
       presupuestoMaxPorNoche: {
         type: 'number',
         description:
@@ -58,58 +66,52 @@ export class AccommodationTool
     required: ['ciudad', 'fechaEntrada', 'fechaSalida'],
   };
 
-  constructor(private readonly hotelbeds: HotelbedsClient) {}
+  constructor(private readonly hotels: SerpApiHotelsClient) {}
 
   async execute(input: AccommodationInput): Promise<AccommodationOutput> {
-    const destinationCode = await this.hotelbeds.resolveDestinationCode(
+    const properties = await this.hotels.search(
       input.ciudad,
-    );
-    const hotels = await this.hotelbeds.searchAvailability(
-      destinationCode,
       input.fechaEntrada,
       input.fechaSalida,
+      input.pasajeros ?? 2,
     );
 
-    const noches = Math.max(
-      1,
-      Math.round(
-        (Date.parse(input.fechaSalida) - Date.parse(input.fechaEntrada)) /
-          MS_PER_DAY,
-      ),
-    );
-
-    const alojamientos = hotels
-      .map((hotel) => {
-        // Hotelbeds devuelve en `net` el precio de toda la estadía, no por noche.
-        const precioTotal = Number(hotel.rooms[0]?.rates[0]?.net ?? 0);
+    const alojamientos = properties
+      .filter(
+        (p) =>
+          (p.rate_per_night?.extracted_lowest ?? 0) > 0 &&
+          (p.total_rate?.extracted_lowest ?? 0) > 0,
+      )
+      .map((p): Alojamiento => {
+        const nombre = p.name;
         return {
-          nombre: hotel.name,
-          precioTotal,
-          precioPorNoche: Math.round(precioTotal / noches),
+          nombre,
+          tipo: p.type === 'hotel' ? 'hotel' : 'alquiler',
+          categoria: p.hotel_class,
+          puntaje: p.overall_rating
+            ? Math.round(p.overall_rating * 10) / 10
+            : undefined,
+          precioTotal: p.total_rate!.extracted_lowest!,
+          precioPorNoche: p.rate_per_night!.extracted_lowest!,
           moneda: 'USD',
-          enlace: this.bookingUrl(input),
+          enlace:
+            p.link ??
+            `https://www.google.com/travel/search?${new URLSearchParams({
+              q: `${nombre} ${input.ciudad}`,
+              hl: 'es',
+              gl: 'ar',
+              curr: 'USD',
+            })}`,
         };
       })
       .filter(
-        (alojamiento) =>
+        (a) =>
           input.presupuestoMaxPorNoche === undefined ||
-          alojamiento.precioPorNoche <= input.presupuestoMaxPorNoche,
+          a.precioPorNoche <= input.presupuestoMaxPorNoche,
       )
       .sort((a, b) => a.precioPorNoche - b.precioPorNoche)
       .slice(0, MAX_RESULTS);
 
     return { alojamientos };
-  }
-
-  private bookingUrl(input: AccommodationInput): string {
-    const params = new URLSearchParams({
-      ss: input.ciudad,
-      checkin: input.fechaEntrada,
-      checkout: input.fechaSalida,
-      group_adults: '2',
-      no_rooms: '1',
-      selected_currency: 'USD',
-    });
-    return `https://www.booking.com/searchresults.es.html?${params}`;
   }
 }

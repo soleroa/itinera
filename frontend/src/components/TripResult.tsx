@@ -64,7 +64,7 @@ export function TripResult({
       {!error && result && result.accommodations.length > 0 && (
         <Section title="Alojamientos recomendados">
           {result.accommodations.map((a, i) => (
-            <AccommodationCard key={i} stay={a} best={i === 0} />
+            <AccommodationCard key={i} stay={a} personas={trip.personas} best={i === 0} />
           ))}
         </Section>
       )}
@@ -186,15 +186,28 @@ function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
   );
 }
 
-function AccommodationCard({ stay, best }: { stay: Accommodation; best: boolean }) {
+function AccommodationCard({
+  stay,
+  personas,
+  best,
+}: {
+  stay: Accommodation;
+  personas: number;
+  best: boolean;
+}) {
+  const details = [
+    stay.tipo === 'hotel' ? 'Hotel' : 'Alquiler',
+    stay.categoria,
+    stay.puntaje ? `${stay.puntaje.toString().replace('.', ',')} / 5` : undefined,
+  ].filter(Boolean);
   return (
     <Card
       title={stay.nombre}
-      lines={[`${formatUsd(stay.precioTotal)} por toda la estadía`]}
+      lines={[details.join(' · '), `${formatUsd(stay.precioTotal)} por toda la estadía`]}
       price={`${formatUsd(stay.precioPorNoche)} / noche`}
-      priceNote="estimado, para 2 adultos"
+      priceNote={personas === 1 ? 'para 1 persona' : `para ${personas} personas`}
       href={stay.enlace}
-      cta="Buscar en Booking"
+      cta="Ver alojamiento"
       best={best}
     />
   );

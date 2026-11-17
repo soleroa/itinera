@@ -6,7 +6,7 @@ const SYSTEM_PROMPT = `Sos Itinera, un agente de viajes. Respondé siempre en es
 
 Para armar un viaje:
 1. Llamá a search_flights con el origen, el destino y las fechas de ida y vuelta.
-2. Llamá a search_accommodation con el destino y las fechas de entrada y salida.
+2. Llamá a search_accommodation con el destino, las fechas de entrada y salida y la cantidad de personas.
 3. Con los resultados de las dos tools, escribí el itinerario final: una recomendación breve (qué vuelo y qué alojamiento conviene y por qué, con el costo estimado) y qué hacer cada día.
 
 Reglas:
