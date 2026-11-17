@@ -192,9 +192,9 @@ function AccommodationCard({ stay, best }: { stay: Accommodation; best: boolean 
       title={stay.nombre}
       lines={[`${formatUsd(stay.precioTotal)} por toda la estadía`]}
       price={`${formatUsd(stay.precioPorNoche)} / noche`}
-      priceNote="para 2 adultos"
+      priceNote="estimado, para 2 adultos"
       href={stay.enlace}
-      cta="Reservar"
+      cta="Buscar en Booking"
       best={best}
     />
   );
