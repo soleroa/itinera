@@ -1,9 +1,13 @@
 # Itinera — backend
 
-Agente de viajes que arma itinerarios a partir de un pedido en lenguaje natural
-(ej: "quiero 5 días en Bariloche con 300 mil pesos"), usando el patrón **ReAct**:
-razona → actúa llamando una tool → observa el resultado → repite hasta tener
-suficiente información → responde.
+API de Itinera. Tiene dos caminos independientes:
+
+1. **Planner determinístico** (`POST /trips/options`): busca vuelos y alojamientos
+   reales y arma combinaciones que entran en el presupuesto. **No usa LLM** y es
+   lo que consume el frontend.
+2. **Agente ReAct** (`POST /agent`): a partir de un pedido en lenguaje natural
+   razona → llama una tool → observa → repite → responde. Necesita Ollama. Es la
+   base para el itinerario por día.
 
 El frontend (React + Vite + Tailwind) vive en `../frontend` — ver
 [frontend/README.md](../frontend/README.md).
@@ -18,13 +22,29 @@ El frontend (React + Vite + Tailwind) vive en `../frontend` — ver
 
 ## Arquitectura
 
-### Los tres módulos
+### El planner (`src/planner/`)
+
+Principio: **lo verificable lo calcula el código**, no el modelo. Un LLM de 8B
+suma mal e inventa precios, así que el presupuesto se verifica sobre los precios
+reales de las APIs.
+
+| Archivo | Responsabilidad |
+|---|---|
+| `trip-planner.service.ts` | Valida el pedido, busca vuelos y hoteles en paralelo, convierte el presupuesto y decide el estado (`ok` / `presupuesto_insuficiente`). Si no alcanza, prueba hasta 3 alternativas (una o dos noches menos, una semana después) |
+| `combinations.ts` | Funciones puras: todos los pares vuelo+hotel, y selección de **económica** (más barata), **equilibrada** (mayor calidad/precio) y **mejor** (mayor calidad). Calidad = puntaje del hotel + 0,3 × estrellas − 0,5 × escalas |
+| `fx.service.ts` | Dólar MEP (venta) de dolarapi.com con caché de 30 min; si falla usa `USD_ARS_RATE` |
+| `planner.controller.ts` | `POST /trips/options` |
+
+El planner reutiliza `FlightsTool` y `AccommodationTool` llamándolas directo (con
+el parámetro interno `maxResultados`, que no está en el schema que ve el LLM).
+
+### Los tres módulos del agente
 
 | Módulo | Responsabilidad | Qué NO sabe |
 |---|---|---|
 | `AgentModule` | El loop ReAct: razona, decide, orquesta | No sabe si el LLM es Ollama o Anthropic, ni cómo funciona cada tool por dentro |
 | `LlmModule` | Le habla a un modelo (Ollama o Anthropic) y traduce la respuesta a una decisión genérica | No sabe qué es un itinerario ni ejecuta tools |
-| `ToolsModule` | Expone las acciones que el agente puede ejecutar (clima, vuelos, actividades, presupuesto) | No sabe nada de LLMs ni del loop |
+| `ToolsModule` | Expone las acciones que el agente puede ejecutar (clima, vuelos, alojamiento) | No sabe nada de LLMs ni del loop |
 
 Están separados en tres módulos de Nest (no carpetas sueltas) para que las
 dependencias entre dominios sean explícitas vía `imports`/`exports` — si
@@ -103,7 +123,7 @@ posible).
 
 Por ahora `ToolRegistryService` recibe cada tool por constructor
 (`constructor(weatherTool, accommodationTool, flightsTool) {...}`). Con pocas
-tools es lo más simple y explícito. Con más (actividades, presupuesto) esa
+tools es lo más simple y explícito. Con más tools esa
 lista de parámetros va a crecer, y ahí hay que decidir si se migra a un
 patrón de inyección múltiple de Nest (un token compartido con un array de
 tools) — deliberadamente no resuelto todavía.
@@ -114,9 +134,15 @@ tools) — deliberadamente no resuelto todavía.
 backend/
 ├── src/
 │   ├── main.ts                    → bootstrap, escucha en PORT (default 3001)
-│   ├── app.module.ts              → módulo raíz, importa los tres módulos
+│   ├── app.module.ts              → módulo raíz
 │   ├── common/
 │   │   └── tool.interface.ts      → contrato Tool / ToolDefinition
+│   ├── planner/
+│   │   ├── trip-planner.service.ts → combinaciones según presupuesto + alternativas
+│   │   ├── combinations.ts        → selección económica / equilibrada / mejor
+│   │   ├── fx.service.ts          → dólar MEP
+│   │   ├── planner.controller.ts  → POST /trips/options
+│   │   └── planner.module.ts
 │   ├── agent/
 │   │   ├── llm-provider.ts        → contrato LlmProvider (abstract class)
 │   │   ├── react-agent.service.ts → el loop ReAct
@@ -138,40 +164,43 @@ backend/
 
 ## Cómo correr
 
-Requiere [Ollama](https://ollama.com) corriendo localmente con `qwen3:8b`
-descargado (soporta tool calling):
+Requiere Node >= 22.12.
 
 ```bash
-brew install ollama
-brew services start ollama
-ollama pull qwen3:8b
-```
-
-Después:
-
-```bash
-cd backend
+cp .env.example .env     # completá SERPAPI_KEY
 npm install
-npm run start:dev   # http://localhost:3001, con watch
+npm run start:dev        # http://localhost:3001, con watch
 ```
 
-Variables de entorno opcionales (todas tienen default):
+Variables de entorno:
 
 | Variable | Default | Uso |
 |---|---|---|
-| `PORT` | `3001` | Puerto del servidor Nest |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Dónde está Ollama |
-| `OLLAMA_MODEL` | `qwen3:8b` | Qué modelo pedirle |
-| `SERPAPI_KEY` | — | Requerida para `search_accommodation`. Se obtiene en [serpapi.com](https://serpapi.com/manage-api-key) (plan gratuito con búsquedas limitadas por mes) |
+| `SERPAPI_KEY` | — | **Requerida.** Alojamientos. Se obtiene en [serpapi.com](https://serpapi.com/manage-api-key) (plan gratuito con cupo mensual) |
+| `USD_ARS_RATE` | — | Cotización de respaldo si falla dolarapi.com |
+| `FX_API_URL` | `https://dolarapi.com/v1/dolares/bolsa` | Fuente del dólar MEP |
+| `PORT` | `3001` | Puerto del servidor |
 | `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | Endpoint de SerpApi |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Solo `/agent`: dónde está Ollama |
+| `OLLAMA_MODEL` | `qwen3:8b` | Solo `/agent`: qué modelo pedirle |
 
-Sin `SERPAPI_KEY`, la tool `search_accommodation` tira error al ejecutarse
-(no hay fallback a datos hardcodeados). Cada búsqueda de alojamiento consume
-una búsqueda de la cuota de SerpApi.
+Sin `SERPAPI_KEY` la búsqueda de alojamientos falla (no hay datos de relleno).
+Cada búsqueda consume una del cupo de SerpApi.
 
-Probar:
+### Probar el planner
 
 ```bash
+curl -X POST http://localhost:3001/trips/options \
+  -H 'Content-Type: application/json' \
+  -d '{"origen":"Buenos Aires","destino":"Bariloche","salida":"2026-12-15","vuelta":"2026-12-22","personas":2,"presupuestoMax":3000000}'
+```
+
+### Probar el agente (opcional)
+
+Requiere [Ollama](https://ollama.com) con `qwen3:8b`:
+
+```bash
+brew install ollama && brew services start ollama && ollama pull qwen3:8b
 curl -X POST http://localhost:3001/agent \
   -H 'Content-Type: application/json' \
   -d '{"message":"¿Qué tiempo hace en Bariloche?"}'
@@ -180,22 +209,22 @@ curl -X POST http://localhost:3001/agent \
 ## Estado actual
 
 **Hecho:**
-- Estructura de módulos (`AgentModule`, `ToolsModule`, `LlmModule`)
-- Contrato `Tool` / `ToolDefinition`
-- Contrato `LlmProvider`
-- `OllamaProvider` (única implementación de `LlmProvider` por ahora)
-- Loop ReAct funcionando de punta a punta
-- Una tool de prueba: clima, hardcodeada (sin API real)
-- Tool de vuelos (`search_flights`) vía Google Flights con [fli-js](vendor/fli-js/VENDORED.md)
-  (sin API key; ciudad → aeropuertos, ida o ida y vuelta, filtro por presupuesto
-  total, devuelve los 5 más baratos). Es scraping no oficial: puede romperse si
-  Google cambia su formato, y requiere Node >= 22.12 (carga un paquete ESM)
+- Planner determinístico (`POST /trips/options`): combinaciones vuelo+alojamiento
+  según presupuesto en pesos (dólar MEP), alternativas más baratas y aviso de lo
+  que el presupuesto no cubre
+- Tool de vuelos (`search_flights`) vía Google Flights con
+  [fli-js](vendor/fli-js/VENDORED.md): sin API key, ciudad → aeropuertos, ida o
+  ida y vuelta. Es scraping no oficial: puede romperse si Google cambia su
+  formato
 - Tool de alojamiento (`search_accommodation`) vía Google Hotels con
-  [SerpApi](https://serpapi.com): precios y disponibilidad reales por ciudad,
-  fechas y cantidad de huéspedes, con link al sitio de cada alojamiento y filtro
-  opcional por presupuesto/noche
+  [SerpApi](https://serpapi.com): precios y disponibilidad reales, con link al
+  sitio de cada alojamiento
+- Agente ReAct con `OllamaProvider`, y una tool de clima hardcodeada (sin API real)
 
 **Pendiente:**
-- Más tools: actividades, presupuesto
-- Manejo de errores más prolijo en el loop (hoy tira excepción sin más si
-  se pasa de vueltas)
+- Itinerario por día con Google Places (agrupado por cercanía) y transporte local
+  con Google Routes
+- Caché y límites por usuario para controlar costos de APIs
+- Tests automatizados de `combinations.ts`
+- Verificar el mínimo del presupuesto (hoy solo se respeta el tope)
+- Manejo de errores más prolijo en el loop del agente
