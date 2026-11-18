@@ -1,5 +1,5 @@
 import type { AgentResponse, Accommodation, Flight, TripRequest } from '../types';
-import { formatBudget, formatDate, formatUsd } from '../lib/trip-prompt';
+import { formatDate, formatUsd } from '../lib/format';
 
 export function TripLoading({ trip }: { trip: TripRequest }) {
   return (
@@ -7,10 +7,10 @@ export function TripLoading({ trip }: { trip: TripRequest }) {
       <div className="h-14 w-14 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600 dark:border-emerald-900 dark:border-t-emerald-500" />
       <div className="flex flex-col gap-1.5">
         <h2 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-          Armando tu viaje a {trip.destino}
+          Planning your trip to {trip.destination}
         </h2>
         <p className="text-neutral-500 dark:text-neutral-400">
-          Estoy buscando vuelos y alojamiento, puede tardar un minuto.
+          I'm searching flights and accommodation, this can take a minute.
         </p>
       </div>
     </div>
@@ -29,17 +29,17 @@ export function TripResult({
   onReset: () => void;
 }) {
   const chips = [
-    `${trip.origen} → ${trip.destino}`,
-    `${formatDate(trip.salida)} – ${formatDate(trip.vuelta)}`,
-    trip.personas === 1 ? '1 persona' : `${trip.personas} personas`,
-    formatBudget(trip) ?? 'Sin presupuesto definido',
+    `${trip.origin} → ${trip.destination}`,
+    `${formatDate(trip.departure)} – ${formatDate(trip.returnDate)}`,
+    trip.travelers === 1 ? '1 traveler' : `${trip.travelers} travelers`,
+    trip.maxBudget !== null ? `Up to ${formatUsd(trip.maxBudget)}` : 'No budget set',
   ];
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-6">
       <div className="flex flex-col gap-3">
         <h2 className="text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl dark:text-neutral-50">
-          {error ? 'No pude armar tu viaje' : `Tu viaje a ${trip.destino}`}
+          {error ? "I couldn't plan your trip" : `Your trip to ${trip.destination}`}
         </h2>
         <div className="flex flex-wrap gap-2">
           {chips.map((chip) => (
@@ -54,7 +54,7 @@ export function TripResult({
       </div>
 
       {!error && result && result.flights.length > 0 && (
-        <Section title="Vuelos recomendados">
+        <Section title="Recommended flights">
           {result.flights.map((f, i) => (
             <FlightCard key={i} flight={f} best={i === 0} />
           ))}
@@ -62,9 +62,9 @@ export function TripResult({
       )}
 
       {!error && result && result.accommodations.length > 0 && (
-        <Section title="Alojamientos recomendados">
+        <Section title="Recommended accommodation">
           {result.accommodations.map((a, i) => (
-            <AccommodationCard key={i} stay={a} personas={trip.personas} best={i === 0} />
+            <AccommodationCard key={i} stay={a} travelers={trip.travelers} best={i === 0} />
           ))}
         </Section>
       )}
@@ -85,17 +85,17 @@ export function TripResult({
         onClick={onReset}
         className="self-start rounded-2xl bg-emerald-600 px-6 py-3 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
       >
-        Planear otro viaje
+        Plan another trip
       </button>
     </div>
   );
 }
 
-/** Los horarios llegan como "2026-11-28T08:40:00-03:00": se muestran tal cual, en hora local. */
+/** Times arrive as "2026-11-28T08:40:00-03:00": shown as-is, in local time. */
 function formatDateTime(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d\d)-(\d\d)T(\d\d:\d\d)/);
   if (!m) return iso;
-  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('es-AR', {
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'short',
   });
@@ -135,7 +135,7 @@ function Card({
           <span className="font-semibold text-neutral-900 dark:text-neutral-50">{title}</span>
           {best && (
             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-              Más barato
+              Cheapest
             </span>
           )}
         </div>
@@ -166,17 +166,17 @@ function Card({
 export function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
   return (
     <Card
-      title={flight.aerolinea}
+      title={flight.airline}
       lines={[
-        `Ida: ${formatDateTime(flight.salidaIda)} → ${formatDateTime(flight.llegadaIda)}`,
-        flight.escalas === 0
-          ? 'Directo'
-          : `${flight.escalas} ${flight.escalas === 1 ? 'escala' : 'escalas'}`,
+        `Outbound: ${formatDateTime(flight.outboundDeparture)} → ${formatDateTime(flight.outboundArrival)}`,
+        flight.stops === 0
+          ? 'Nonstop'
+          : `${flight.stops} ${flight.stops === 1 ? 'stop' : 'stops'}`,
       ]}
-      price={formatUsd(flight.precioTotal)}
-      priceNote="total, todos los pasajeros"
-      href={flight.enlace}
-      cta="Ver vuelo"
+      price={formatUsd(flight.totalPrice)}
+      priceNote="total, all passengers"
+      href={flight.link}
+      cta="View flight"
       best={best}
     />
   );
@@ -184,26 +184,26 @@ export function FlightCard({ flight, best }: { flight: Flight; best: boolean }) 
 
 export function AccommodationCard({
   stay,
-  personas,
+  travelers,
   best,
 }: {
   stay: Accommodation;
-  personas: number;
+  travelers: number;
   best: boolean;
 }) {
   const details = [
-    stay.tipo === 'hotel' ? 'Hotel' : 'Alquiler',
-    stay.categoria,
-    stay.puntaje ? `${stay.puntaje.toString().replace('.', ',')} / 5` : undefined,
+    stay.type === 'hotel' ? 'Hotel' : 'Rental',
+    stay.category,
+    stay.rating ? `${stay.rating} / 5` : undefined,
   ].filter(Boolean);
   return (
     <Card
-      title={stay.nombre}
-      lines={[details.join(' · '), `${formatUsd(stay.precioTotal)} por toda la estadía`]}
-      price={`${formatUsd(stay.precioPorNoche)} / noche`}
-      priceNote={personas === 1 ? 'para 1 persona' : `para ${personas} personas`}
-      href={stay.enlace}
-      cta="Ver alojamiento"
+      title={stay.name}
+      lines={[details.join(' · '), `${formatUsd(stay.totalPrice)} for the whole stay`]}
+      price={`${formatUsd(stay.pricePerNight)} / night`}
+      priceNote={travelers === 1 ? 'for 1 traveler' : `for ${travelers} travelers`}
+      href={stay.link}
+      cta="View accommodation"
       best={best}
     />
   );

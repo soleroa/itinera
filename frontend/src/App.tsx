@@ -19,15 +19,15 @@ export default function App() {
   const handleSubmit = async (trip: TripRequest) => {
     setPhase({ name: 'loading', trip });
     track('trip_submitted', {
-      personas: trip.personas,
-      has_budget: trip.presupuestoMin !== null || trip.presupuestoMax !== null,
+      travelers: trip.travelers,
+      has_budget: trip.maxBudget !== null,
     });
     try {
       const data = await fetchTripOptions(trip);
-      track('trip_plan_succeeded', { estado: data.estado });
+      track('trip_plan_succeeded', { status: data.status });
       setPhase({ name: 'options', trip, data });
     } catch (err) {
-      const error = err instanceof TripsError ? err.message : 'No se pudo contactar al backend.';
+      const error = err instanceof TripsError ? err.message : 'Could not reach the backend.';
       track('trip_plan_failed', { error });
       setPhase({ name: 'error', trip, error });
     }
@@ -49,7 +49,7 @@ export default function App() {
             trip={phase.trip}
             data={phase.data}
             onChoose={(option) => {
-              track('trip_option_chosen', { nivel: option.nivel });
+              track('trip_option_chosen', { level: option.level });
               setPhase({ name: 'chosen', trip: phase.trip, option });
             }}
             onReset={() => setPhase({ name: 'planning' })}
@@ -60,8 +60,8 @@ export default function App() {
             trip={phase.trip}
             result={{
               answer: '',
-              flights: [phase.option.vuelo],
-              accommodations: [phase.option.alojamiento],
+              flights: [phase.option.flight],
+              accommodations: [phase.option.accommodation],
             }}
             error={null}
             onReset={() => setPhase({ name: 'planning' })}

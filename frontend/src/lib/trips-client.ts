@@ -12,13 +12,12 @@ export async function fetchTripOptions(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      origen: trip.origen,
-      destino: trip.destino,
-      salida: trip.salida,
-      vuelta: trip.vuelta,
-      personas: trip.personas,
-      // El backend solo usa el tope: el mínimo no se verifica.
-      presupuestoMax: trip.presupuestoMax,
+      origin: trip.origin,
+      destination: trip.destination,
+      departure: trip.departure,
+      returnDate: trip.returnDate,
+      travelers: trip.travelers,
+      maxBudget: trip.maxBudget,
     }),
     signal,
   });
@@ -28,9 +27,9 @@ export async function fetchTripOptions(
     try {
       detail = ((await res.json()) as { message?: string }).message ?? '';
     } catch {
-      // sin cuerpo JSON
+      // no JSON body
     }
-    throw new TripsError(detail || `El backend respondió ${res.status}`);
+    throw new TripsError(detail || `The backend responded ${res.status}`);
   }
   return (await res.json()) as TripOptionsResponse;
 }

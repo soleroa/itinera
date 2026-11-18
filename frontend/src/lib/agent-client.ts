@@ -12,12 +12,12 @@ export async function askAgent(message: string, signal?: AbortSignal): Promise<A
   });
 
   if (!res.ok) {
-    throw new AgentError(`El backend respondió ${res.status}`);
+    throw new AgentError(`The backend responded ${res.status}`);
   }
 
   const data = (await res.json()) as Partial<AgentResponse>;
   if (!data.answer) {
-    throw new AgentError('El backend no devolvió una respuesta.');
+    throw new AgentError('The backend returned no answer.');
   }
   return {
     answer: data.answer,
