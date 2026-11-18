@@ -13,6 +13,6 @@ import { ToolRegistryService } from './tool-registry.service';
     FlightsTool,
     ToolRegistryService,
   ],
-  exports: [ToolRegistryService],
+  exports: [ToolRegistryService, FlightsTool, AccommodationTool],
 })
 export class ToolsModule {}

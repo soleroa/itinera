@@ -19,9 +19,11 @@ interface FlightsInput {
   fechaVuelta?: string;
   pasajeros?: number;
   presupuestoMaxTotal?: number;
+  /** Uso interno (no está en el schema del LLM): tope de resultados, por defecto 5. */
+  maxResultados?: number;
 }
 
-interface Vuelo {
+export interface Vuelo {
   aerolinea: string;
   precioTotal: number;
   moneda: string;
@@ -32,7 +34,7 @@ interface Vuelo {
   enlace: string;
 }
 
-interface FlightsOutput {
+export interface FlightsOutput {
   vuelos: Vuelo[];
 }
 
@@ -155,7 +157,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
             input.presupuestoMaxTotal === undefined ||
             vuelo.precioTotal <= input.presupuestoMaxTotal,
         )
-        .slice(0, MAX_RESULTS),
+        .slice(0, input.maxResultados ?? MAX_RESULTS),
     };
   }
 

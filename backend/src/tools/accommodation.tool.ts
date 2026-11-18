@@ -8,11 +8,13 @@ interface AccommodationInput {
   fechaSalida: string;
   pasajeros?: number;
   presupuestoMaxPorNoche?: number;
+  /** Uso interno (no está en el schema del LLM): tope de resultados, por defecto 5. */
+  maxResultados?: number;
 }
 
 const MAX_RESULTS = 5;
 
-interface Alojamiento {
+export interface Alojamiento {
   nombre: string;
   tipo: 'hotel' | 'alquiler';
   /** Ej: "Hotel de 3 estrellas"; ausente si Google no la informa. */
@@ -26,7 +28,7 @@ interface Alojamiento {
   enlace: string;
 }
 
-interface AccommodationOutput {
+export interface AccommodationOutput {
   alojamientos: Alojamiento[];
 }
 
@@ -110,7 +112,7 @@ export class AccommodationTool
           a.precioPorNoche <= input.presupuestoMaxPorNoche,
       )
       .sort((a, b) => a.precioPorNoche - b.precioPorNoche)
-      .slice(0, MAX_RESULTS);
+      .slice(0, input.maxResultados ?? MAX_RESULTS);
 
     return { alojamientos };
   }
