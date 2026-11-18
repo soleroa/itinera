@@ -58,9 +58,9 @@ export class OllamaProvider extends LlmProvider {
       body: JSON.stringify({
         model: this.model,
         stream: false,
-        // qwen3 razona en voz alta por defecto: a ~10 tokens/s cada vuelta tardaba minutos.
+        // qwen3 reasons out loud by default: at ~10 tokens/s each turn took minutes.
         think: false,
-        // El default (4096) se queda corto con los resultados de las tools.
+        // The default (4096) is too small for the tools' results.
         options: { num_ctx: 8192 },
         messages: messages.map((message) => this.toOllamaMessage(message)),
         tools: tools.map((tool) => ({
@@ -76,7 +76,7 @@ export class OllamaProvider extends LlmProvider {
 
     if (!response.ok) {
       throw new Error(
-        `Ollama respondió ${response.status}: ${await response.text()}`,
+        `Ollama responded ${response.status}: ${await response.text()}`,
       );
     }
 

@@ -27,7 +27,7 @@ export class ToolRegistryService {
   async execute(toolName: string, input: unknown): Promise<unknown> {
     const tool = this.tools.find((t) => t.name === toolName);
     if (!tool) {
-      throw new Error(`No existe una tool registrada con nombre "${toolName}"`);
+      throw new Error(`No tool registered with name "${toolName}"`);
     }
     return tool.execute(input);
   }

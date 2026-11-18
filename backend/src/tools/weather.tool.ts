@@ -12,13 +12,13 @@ interface WeatherOutput {
 @Injectable()
 export class WeatherTool implements Tool<WeatherInput, WeatherOutput> {
   name = 'get_weather';
-  description = 'Devuelve el pronóstico del clima actual para una ciudad.';
+  description = 'Returns the current weather forecast for a city.';
   inputSchema: JsonSchemaObject = {
     type: 'object',
     properties: {
       city: {
         type: 'string',
-        description: 'Nombre de la ciudad, ej: Bariloche',
+        description: 'City name, e.g. Bariloche',
       },
     },
     required: ['city'],
@@ -26,7 +26,7 @@ export class WeatherTool implements Tool<WeatherInput, WeatherOutput> {
 
   async execute(input: WeatherInput): Promise<WeatherOutput> {
     return {
-      forecast: `En ${input.city}: 18°C, parcialmente nublado.`,
+      forecast: `In ${input.city}: 18°C, partly cloudy.`,
     };
   }
 }

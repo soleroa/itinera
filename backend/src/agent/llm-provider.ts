@@ -8,9 +8,9 @@ export interface ToolCallRequest {
 export interface LlmMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
-  /** Solo en mensajes 'assistant': la tool que el modelo pidió llamar. */
+  /** Only on 'assistant' messages: the tool the model asked to call. */
   toolCall?: ToolCallRequest;
-  /** Solo en mensajes 'tool': a qué tool corresponde el resultado. */
+  /** Only on 'tool' messages: which tool the result belongs to. */
   toolName?: string;
 }
 
