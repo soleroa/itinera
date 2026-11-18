@@ -13,36 +13,36 @@ import {
 import { JsonSchemaObject, Tool } from '../common/tool.interface';
 
 interface FlightsInput {
-  origen: string;
-  destino: string;
-  fechaIda: string;
-  fechaVuelta?: string;
-  pasajeros?: number;
-  presupuestoMaxTotal?: number;
-  /** Uso interno (no está en el schema del LLM): tope de resultados, por defecto 5. */
-  maxResultados?: number;
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate?: string;
+  passengers?: number;
+  maxTotalPrice?: number;
+  /** Internal (not in the LLM schema): result cap, default 5. */
+  maxResults?: number;
 }
 
-export interface Vuelo {
-  aerolinea: string;
-  precioTotal: number;
-  moneda: string;
-  escalas: number;
-  salidaIda: string;
-  llegadaIda: string;
-  /** Link a Google Flights con la ruta y fechas ya cargadas, para reservar. */
-  enlace: string;
+export interface Flight {
+  airline: string;
+  totalPrice: number;
+  currency: string;
+  stops: number;
+  outboundDeparture: string;
+  outboundArrival: string;
+  /** Google Flights link with the route and dates preloaded, for booking. */
+  link: string;
 }
 
 export interface FlightsOutput {
-  vuelos: Vuelo[];
+  flights: Flight[];
 }
 
 const MAX_RESULTS = 5;
 
 /**
- * searchAirports no distingue países ("Santa Fe" devuelve el de Nuevo México),
- * así que las ciudades argentinas más buscadas se resuelven acá primero.
+ * searchAirports does not disambiguate countries ("Santa Fe" returns the New Mexico one),
+ * so the most searched Argentine cities are resolved here first.
  */
 const ARGENTINE_AIRPORTS: Record<string, string[]> = {
   'santa fe': ['SFN'],
@@ -76,139 +76,138 @@ const ARGENTINE_AIRPORTS: Record<string, string[]> = {
 export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
   name = 'search_flights';
   description =
-    'Busca vuelos de ida (o ida y vuelta) entre dos ciudades para una fecha, ' +
-    'opcionalmente filtrando por presupuesto máximo total. Devuelve los más baratos.';
+    'Searches one-way (or round-trip) flights between two cities for a date, ' +
+    'optionally filtering by maximum total price. Returns the cheapest ones. Prices are in USD.';
   inputSchema: JsonSchemaObject = {
     type: 'object',
     properties: {
-      origen: {
+      origin: {
         type: 'string',
-        description: 'Ciudad o aeropuerto de origen, ej: Buenos Aires',
+        description: 'Origin city or airport, e.g. Buenos Aires',
       },
-      destino: {
+      destination: {
         type: 'string',
-        description: 'Ciudad o aeropuerto de destino, ej: Bariloche',
+        description: 'Destination city or airport, e.g. Bariloche',
       },
-      fechaIda: {
+      departureDate: {
         type: 'string',
-        description: 'Fecha de ida en formato YYYY-MM-DD',
+        description: 'Departure date in YYYY-MM-DD format',
       },
-      fechaVuelta: {
+      returnDate: {
         type: 'string',
-        description: 'Fecha de vuelta en formato YYYY-MM-DD (opcional)',
+        description: 'Return date in YYYY-MM-DD format (optional)',
       },
-      pasajeros: {
+      passengers: {
         type: 'number',
-        description: 'Cantidad de pasajeros adultos (opcional, por defecto 1)',
+        description: 'Number of adult passengers (optional, default 1)',
       },
-      presupuestoMaxTotal: {
+      maxTotalPrice: {
         type: 'number',
-        description:
-          'Presupuesto máximo total, en la moneda que devuelva la API (opcional)',
+        description: 'Maximum total price in USD (optional)',
       },
     },
-    required: ['origen', 'destino', 'fechaIda'],
+    required: ['origin', 'destination', 'departureDate'],
   };
 
   async execute(input: FlightsInput): Promise<FlightsOutput> {
-    const origins = this.resolveAirports(input.origen);
-    const destinations = this.resolveAirports(input.destino);
-    const pasajeros = input.pasajeros ?? 1;
+    const origins = this.resolveAirports(input.origin);
+    const destinations = this.resolveAirports(input.destination);
+    const passengers = input.passengers ?? 1;
 
-    const enlace = googleFlightsUrl(
-      input.origen,
-      input.destino,
-      input.fechaIda,
-      input.fechaVuelta,
-      { currency: 'USD', language: 'es', country: 'AR' },
+    const link = googleFlightsUrl(
+      input.origin,
+      input.destination,
+      input.departureDate,
+      input.returnDate,
+      { currency: 'USD', language: 'en', country: 'US' },
     );
 
     const results = await this.search(
       origins,
       destinations,
-      input.fechaIda,
-      input.fechaVuelta,
-      pasajeros,
+      input.departureDate,
+      input.returnDate,
+      passengers,
     );
 
-    const vuelos =
+    const flights =
       results !== null
         ? results.map((result) => {
-            // En ida y vuelta, cada resultado es [ida, vuelta] y el precio total va en el último.
-            const [ida] = Array.isArray(result) ? result : [result];
+            // On round trips each result is [outbound, return] and the total price is on the last one.
+            const [outbound] = Array.isArray(result) ? result : [result];
             const total = Array.isArray(result)
               ? result[result.length - 1]
               : result;
-            return this.toVuelo(ida, total.price, total.currency, enlace);
+            return this.toFlight(outbound, total.price, total.currency, link);
           })
         : await this.searchLegsSeparately(
             input,
             origins,
             destinations,
-            pasajeros,
-            enlace,
+            passengers,
+            link,
           );
 
     return {
-      vuelos: vuelos
-        .filter((vuelo) => !Number.isNaN(vuelo.precioTotal))
+      flights: flights
+        .filter((flight) => !Number.isNaN(flight.totalPrice))
         .filter(
-          (vuelo) =>
-            input.presupuestoMaxTotal === undefined ||
-            vuelo.precioTotal <= input.presupuestoMaxTotal,
+          (flight) =>
+            input.maxTotalPrice === undefined ||
+            flight.totalPrice <= input.maxTotalPrice,
         )
-        .slice(0, input.maxResultados ?? MAX_RESULTS),
+        .slice(0, input.maxResults ?? MAX_RESULTS),
     };
   }
 
   /**
-   * Google a veces no devuelve ida y vuelta para una ruta con poca oferta (ej: Santa Fe -
-   * Bariloche) aunque cada tramo por separado sí tenga vuelos. En ese caso se buscan los
-   * dos tramos y el precio total es la ida más la vuelta más barata.
+   * Google sometimes returns no round trip for a low-supply route (e.g. Santa Fe -
+   * Bariloche) even though each leg has flights on its own. In that case both legs are
+   * searched and the total price is the outbound plus the cheapest return.
    */
   private async searchLegsSeparately(
     input: FlightsInput,
     origins: Airport[],
     destinations: Airport[],
-    pasajeros: number,
-    enlace: string,
-  ): Promise<Vuelo[]> {
-    const ida = input.fechaVuelta
+    passengers: number,
+    link: string,
+  ): Promise<Flight[]> {
+    const outbound = input.returnDate
       ? await this.search(
           origins,
           destinations,
-          input.fechaIda,
+          input.departureDate,
           null,
-          pasajeros,
+          passengers,
         )
       : null;
-    const vuelta = input.fechaVuelta
+    const inbound = input.returnDate
       ? await this.search(
           destinations,
           origins,
-          input.fechaVuelta,
+          input.returnDate,
           null,
-          pasajeros,
+          passengers,
         )
       : null;
 
-    if (!ida?.length || !vuelta?.length) {
+    if (!outbound?.length || !inbound?.length) {
       throw new Error(
-        'Google Flights no devolvió resultados (puede ser un bloqueo o un cambio en su formato).',
+        'Google Flights returned no results (it may be blocking requests or its format may have changed).',
       );
     }
 
-    const vueltaMasBarata = Math.min(
-      ...(vuelta as FlightResult[]).map(
-        (v) => v.price ?? Number.POSITIVE_INFINITY,
+    const cheapestReturn = Math.min(
+      ...(inbound as FlightResult[]).map(
+        (f) => f.price ?? Number.POSITIVE_INFINITY,
       ),
     );
-    return (ida as FlightResult[]).map((v) =>
-      this.toVuelo(
-        v,
-        (v.price ?? Number.NaN) + vueltaMasBarata,
-        v.currency,
-        enlace,
+    return (outbound as FlightResult[]).map((f) =>
+      this.toFlight(
+        f,
+        (f.price ?? Number.NaN) + cheapestReturn,
+        f.currency,
+        link,
       ),
     );
   }
@@ -216,21 +215,21 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
   private async search(
     origins: Airport[],
     destinations: Airport[],
-    fechaIda: string,
-    fechaVuelta: string | null | undefined,
-    pasajeros: number,
+    departureDate: string,
+    returnDate: string | null | undefined,
+    passengers: number,
   ) {
     const { segments, tripType } = buildFlightSegments(
       origins,
       destinations,
-      fechaIda,
-      fechaVuelta,
+      departureDate,
+      returnDate,
     );
 
     const filters = new FlightSearchFilters({
       trip_type: tripType,
       passenger_info: {
-        adults: pasajeros,
+        adults: passengers,
         children: 0,
         infants_in_seat: 0,
         infants_on_lap: 0,
@@ -243,51 +242,54 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     return new SearchFlights().search(filters, { currency: 'USD' });
   }
 
-  private toVuelo(
-    ida: FlightResult,
-    precioTotal: number | null,
-    moneda: string | null,
-    enlace: string,
-  ): Vuelo {
-    const first = ida.legs[0];
-    const last = ida.legs[ida.legs.length - 1];
-    const local = this.localTimes(ida);
+  private toFlight(
+    outbound: FlightResult,
+    totalPrice: number | null,
+    currency: string | null,
+    link: string,
+  ): Flight {
+    const first = outbound.legs[0];
+    const last = outbound.legs[outbound.legs.length - 1];
+    const local = this.localTimes(outbound);
     return {
-      aerolinea: ida.primary_airline_name ?? first.airline,
-      precioTotal: precioTotal ?? Number.NaN,
-      moneda: moneda ?? 'USD',
-      escalas: ida.stops,
-      salidaIda: local?.salida ?? first.departure_datetime.toISOString(),
-      llegadaIda: local?.llegada ?? last.arrival_datetime.toISOString(),
-      enlace,
+      airline: outbound.primary_airline_name ?? first.airline,
+      totalPrice: totalPrice ?? Number.NaN,
+      currency: currency ?? 'USD',
+      stops: outbound.stops,
+      outboundDeparture:
+        local?.departure ?? first.departure_datetime.toISOString(),
+      outboundArrival: local?.arrival ?? last.arrival_datetime.toISOString(),
+      link,
     };
   }
 
   /**
-   * fli-js entrega los horarios en UTC y no conoce husos horarios de aeropuertos,
-   * pero el booking_token (protobuf en base64) trae cada tramo con su hora local y offset
-   * (ej: 2026-12-15T21:00:00-03:00): salida, llegada, salida, llegada...
+   * fli-js returns times in UTC and does not know airport time zones, but the
+   * booking_token (base64 protobuf) carries each leg with its local time and offset
+   * (e.g. 2026-12-15T21:00:00-03:00): departure, arrival, departure, arrival...
    */
   private localTimes(
-    ida: FlightResult,
-  ): { salida: string; llegada: string } | null {
-    if (!ida.booking_token) return null;
-    const decoded = Buffer.from(ida.booking_token, 'base64').toString('latin1');
+    outbound: FlightResult,
+  ): { departure: string; arrival: string } | null {
+    if (!outbound.booking_token) return null;
+    const decoded = Buffer.from(outbound.booking_token, 'base64').toString(
+      'latin1',
+    );
     const times =
       decoded.match(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d/g) ?? [];
-    const salida = times[0];
-    const llegada = times[ida.legs.length * 2 - 1];
-    return salida && llegada ? { salida, llegada } : null;
+    const departure = times[0];
+    const arrival = times[outbound.legs.length * 2 - 1];
+    return departure && arrival ? { departure, arrival } : null;
   }
 
-  /** Una ciudad con varios aeropuertos (ej: Buenos Aires) se busca en todos ellos. */
-  private resolveAirports(lugar: string): Airport[] {
-    const argentine = ARGENTINE_AIRPORTS[this.normalize(lugar)];
+  /** A city with several airports (e.g. Buenos Aires) is searched across all of them. */
+  private resolveAirports(place: string): Airport[] {
+    const argentine = ARGENTINE_AIRPORTS[this.normalize(place)];
     if (argentine) return argentine as Airport[];
 
-    const matches = searchAirports(lugar, 5);
+    const matches = searchAirports(place, 5);
     if (matches.length === 0) {
-      throw new Error(`No se encontró "${lugar}" como ciudad o aeropuerto.`);
+      throw new Error(`"${place}" was not found as a city or airport.`);
     }
     return matches[0].match_type === 'city'
       ? matches.filter((m) => m.match_type === 'city').map((m) => m.code)

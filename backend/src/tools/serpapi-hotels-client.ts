@@ -19,7 +19,7 @@ interface SerpApiHotelsResponse {
   properties?: SerpApiProperty[];
 }
 
-/** Precios y disponibilidad reales de Google Hotels, vía SerpApi (https://serpapi.com). */
+/** Real prices and availability from Google Hotels, via SerpApi (https://serpapi.com). */
 @Injectable()
 export class SerpApiHotelsClient {
   private readonly baseUrl =
@@ -33,7 +33,7 @@ export class SerpApiHotelsClient {
   ): Promise<SerpApiProperty[]> {
     const apiKey = process.env.SERPAPI_KEY;
     if (!apiKey) {
-      throw new Error('Falta SERPAPI_KEY en las variables de entorno.');
+      throw new Error('Missing SERPAPI_KEY environment variable.');
     }
 
     const params = new URLSearchParams({
@@ -43,17 +43,17 @@ export class SerpApiHotelsClient {
       check_out_date: checkOut,
       adults: String(adults),
       currency: 'USD',
-      hl: 'es',
-      gl: 'ar',
+      hl: 'en',
+      gl: 'us',
       api_key: apiKey,
     });
     const response = await fetch(`${this.baseUrl}?${params}`);
     const data = (await response.json()) as SerpApiHotelsResponse;
 
     if (!response.ok || data.error) {
-      // El mensaje de SerpApi no incluye la key, pero igual no se vuelca la URL.
+      // SerpApi's message does not include the key, but the URL is not dumped either.
       throw new Error(
-        `SerpApi respondió ${response.status}: ${data.error ?? 'error desconocido'}`,
+        `SerpApi responded ${response.status}: ${data.error ?? 'unknown error'}`,
       );
     }
     return data.properties ?? [];

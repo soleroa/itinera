@@ -1,87 +1,76 @@
-import type { Alojamiento } from '../tools/accommodation.tool';
-import type { Vuelo } from '../tools/flights.tool';
+import type { Accommodation } from '../tools/accommodation.tool';
+import type { Flight } from '../tools/flights.tool';
 
-export type Nivel = 'economica' | 'equilibrada' | 'mejor';
+export type Level = 'cheapest' | 'balanced' | 'best';
 
-export interface Combinacion {
-  nivel: Nivel;
-  vuelo: Vuelo;
-  alojamiento: Alojamiento;
-  totalUsd: number;
+export interface Combination {
+  level: Level;
+  flight: Flight;
+  accommodation: Accommodation;
+  /** Flight + accommodation, in USD. */
+  total: number;
 }
 
-/** Calidad de una combinación: puntaje y categoría del hotel, penalizada por escalas. */
-export function calidad(vuelo: Vuelo, hotel: Alojamiento): number {
-  const estrellas = Number(hotel.categoria?.match(/\d/)?.[0] ?? 0);
-  return (hotel.puntaje ?? 3.5) + estrellas * 0.3 - vuelo.escalas * 0.5;
+interface Pair {
+  flight: Flight;
+  accommodation: Accommodation;
+  total: number;
+  quality: number;
 }
 
-interface Par {
-  vuelo: Vuelo;
-  alojamiento: Alojamiento;
-  totalUsd: number;
-  calidad: number;
+/** Quality of a pair: hotel rating and star class, penalized by flight stops. */
+export function quality(flight: Flight, hotel: Accommodation): number {
+  const stars = Number(hotel.category?.match(/\d/)?.[0] ?? 0);
+  return (hotel.rating ?? 3.5) + stars * 0.3 - flight.stops * 0.5;
 }
 
-function pares(vuelos: Vuelo[], hoteles: Alojamiento[]): Par[] {
-  const result: Par[] = [];
-  for (const vuelo of vuelos) {
-    for (const alojamiento of hoteles) {
-      result.push({
-        vuelo,
-        alojamiento,
-        totalUsd: vuelo.precioTotal + alojamiento.precioTotal,
-        calidad: calidad(vuelo, alojamiento),
+/** Every flight + accommodation pair (in USD), cheapest first. */
+export function allCombinations(
+  flights: Flight[],
+  hotels: Accommodation[],
+): Pair[] {
+  const pairs: Pair[] = [];
+  for (const flight of flights) {
+    for (const accommodation of hotels) {
+      pairs.push({
+        flight,
+        accommodation,
+        total: flight.totalPrice + accommodation.totalPrice,
+        quality: quality(flight, accommodation),
       });
     }
   }
-  return result;
-}
-
-/** Todas las combinaciones (en USD), de la más barata a la más cara. */
-export function todasLasCombinaciones(
-  vuelos: Vuelo[],
-  hoteles: Alojamiento[],
-): Par[] {
-  return pares(vuelos, hoteles).sort((a, b) => a.totalUsd - b.totalUsd);
+  return pairs.sort((a, b) => a.total - b.total);
 }
 
 /**
- * Elige hasta 3 combinaciones distintas que entran en `maxUsd` (sin tope si es null):
- * la más barata, la de mejor relación calidad/precio y la de mayor calidad.
+ * Picks up to 3 distinct combinations that fit within `maxBudget` (no cap if null):
+ * the cheapest, the best quality/price ratio and the highest quality.
  */
-export function elegirOpciones(
-  candidatas: Par[],
-  maxUsd: number | null,
-): Combinacion[] {
-  const factibles = candidatas.filter(
-    (c) => maxUsd === null || c.totalUsd <= maxUsd,
+export function pickOptions(
+  candidates: Pair[],
+  maxBudget: number | null,
+): Combination[] {
+  const feasible = candidates.filter(
+    (c) => maxBudget === null || c.total <= maxBudget,
   );
-  if (factibles.length === 0) return [];
 
-  const usadas = new Set<Par>();
-  const pick = (nivel: Nivel, orden: (a: Par, b: Par) => number) => {
-    const elegida = factibles
-      .filter((c) => !usadas.has(c))
-      .sort(orden)[0];
-    if (!elegida) return null;
-    usadas.add(elegida);
-    return { nivel, ...elegida } as Combinacion & { calidad?: number };
+  const used = new Set<Pair>();
+  const pick = (level: Level, order: (a: Pair, b: Pair) => number) => {
+    const chosen = feasible.filter((c) => !used.has(c)).sort(order)[0];
+    if (!chosen) return null;
+    used.add(chosen);
+    return {
+      level,
+      flight: chosen.flight,
+      accommodation: chosen.accommodation,
+      total: chosen.total,
+    };
   };
 
-  const resultado = [
-    pick('economica', (a, b) => a.totalUsd - b.totalUsd),
-    pick(
-      'equilibrada',
-      (a, b) => b.calidad / b.totalUsd - a.calidad / a.totalUsd,
-    ),
-    pick('mejor', (a, b) => b.calidad - a.calidad || a.totalUsd - b.totalUsd),
-  ].filter((c): c is Combinacion => c !== null);
-
-  return resultado.map(({ nivel, vuelo, alojamiento, totalUsd }) => ({
-    nivel,
-    vuelo,
-    alojamiento,
-    totalUsd,
-  }));
+  return [
+    pick('cheapest', (a, b) => a.total - b.total),
+    pick('balanced', (a, b) => b.quality / b.total - a.quality / a.total),
+    pick('best', (a, b) => b.quality - a.quality || a.total - b.total),
+  ].filter((c): c is Combination => c !== null);
 }

@@ -1,50 +1,45 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AccommodationTool } from '../tools/accommodation.tool';
 import { FlightsTool } from '../tools/flights.tool';
-import { Combinacion, elegirOpciones, todasLasCombinaciones } from './combinations';
-import { Cotizacion, FxService } from './fx.service';
+import { allCombinations, Combination, pickOptions } from './combinations';
 
 export interface TripRequest {
-  origen: string;
-  destino: string;
-  salida: string;
-  vuelta: string;
-  personas: number;
-  /** Presupuesto total en pesos argentinos; null si no hay tope. */
-  presupuestoMax: number | null;
+  origin: string;
+  destination: string;
+  /** Departure date, YYYY-MM-DD. */
+  departure: string;
+  /** Return date, YYYY-MM-DD. */
+  returnDate: string;
+  travelers: number;
+  /** Total budget in USD; null if there is no cap. */
+  maxBudget: number | null;
 }
 
-export interface OpcionConPrecio extends Combinacion {
-  totalArs: number;
+export interface Alternative {
+  change: string;
+  departure: string;
+  returnDate: string;
+  option: Combination;
 }
 
 export interface TripOptions {
-  estado: 'ok' | 'presupuesto_insuficiente';
-  cotizacion: Cotizacion;
-  opciones: OpcionConPrecio[];
-  /** Solo si el presupuesto no alcanza: la combinación más barata y cuánto falta (en pesos). */
-  masBarata?: OpcionConPrecio;
-  faltanteArs?: number;
-  /** Solo si el presupuesto no alcanza: variantes de fechas/noches que sí entran, con su opción más barata. */
-  alternativas?: Alternativa[];
-  /** Lo que el presupuesto NO cubre. */
-  aviso: string;
+  status: 'ok' | 'over_budget';
+  options: Combination[];
+  /** Only when over budget: the cheapest combination and how much the budget falls short (USD). */
+  cheapest?: Combination;
+  shortfall?: number;
+  /** Only when over budget: variants of dates/nights that do fit, with their cheapest option. */
+  alternatives?: Alternative[];
+  /** What the budget does NOT cover. */
+  notice: string;
 }
 
-export interface Alternativa {
-  cambio: string;
-  salida: string;
-  vuelta: string;
-  opcion: OpcionConPrecio;
-}
-
-/** Tope de búsquedas extra (cada una gasta una llamada a vuelos y una a hoteles). */
-const MAX_INTENTOS_ALTERNATIVAS = 3;
-
-const AVISO =
-  'El presupuesto se verificó solo contra vuelo + alojamiento. Comida, entradas y transporte local no están incluidos.';
-const CANDIDATOS = 15;
+/** Cap on extra searches (each costs one flights call and one hotels call). */
+const MAX_ALTERNATIVE_ATTEMPTS = 3;
+const CANDIDATES = 15;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NOTICE =
+  'The budget was checked against flight + accommodation only. Food, tickets and local transport are not included.';
 
 @Injectable()
 export class TripPlannerService {
@@ -53,165 +48,156 @@ export class TripPlannerService {
   constructor(
     private readonly flights: FlightsTool,
     private readonly accommodation: AccommodationTool,
-    private readonly fx: FxService,
   ) {}
 
   validate(body: Partial<TripRequest>): TripRequest {
-    const { origen, destino, salida, vuelta, personas, presupuestoMax } = body;
-    if (!origen?.trim() || !destino?.trim()) {
-      throw new BadRequestException('Faltan origen y/o destino.');
-    }
-    if (!salida || !vuelta || !DATE.test(salida) || !DATE.test(vuelta)) {
-      throw new BadRequestException('Las fechas deben tener formato YYYY-MM-DD.');
-    }
-    if (vuelta <= salida) {
-      throw new BadRequestException('La vuelta debe ser posterior a la salida.');
-    }
-    if (!Number.isInteger(personas) || personas! < 1) {
-      throw new BadRequestException('personas debe ser un entero >= 1.');
+    const { origin, destination, departure, returnDate, travelers, maxBudget } =
+      body;
+    if (!origin?.trim() || !destination?.trim()) {
+      throw new BadRequestException('origin and destination are required.');
     }
     if (
-      presupuestoMax != null &&
-      (typeof presupuestoMax !== 'number' || presupuestoMax <= 0)
+      !departure ||
+      !returnDate ||
+      !DATE.test(departure) ||
+      !DATE.test(returnDate)
     ) {
-      throw new BadRequestException('presupuestoMax debe ser un número positivo.');
+      throw new BadRequestException('Dates must be in YYYY-MM-DD format.');
+    }
+    if (returnDate <= departure) {
+      throw new BadRequestException('returnDate must be after departure.');
+    }
+    if (!Number.isInteger(travelers) || travelers! < 1) {
+      throw new BadRequestException('travelers must be an integer >= 1.');
+    }
+    if (
+      maxBudget != null &&
+      (typeof maxBudget !== 'number' || maxBudget <= 0)
+    ) {
+      throw new BadRequestException('maxBudget must be a positive number.');
     }
     return {
-      origen: origen.trim(),
-      destino: destino.trim(),
-      salida,
-      vuelta,
-      personas: personas!,
-      presupuestoMax: presupuestoMax ?? null,
+      origin: origin.trim(),
+      destination: destination.trim(),
+      departure,
+      returnDate,
+      travelers: travelers!,
+      maxBudget: maxBudget ?? null,
     };
   }
 
-  /** Todas las combinaciones (en USD) para un pedido, de la más barata a la más cara. */
-  private async candidatas(req: TripRequest) {
-    const [vuelos, alojamientos] = await Promise.all([
+  /** Every combination (in USD) for a request, cheapest first. */
+  private async candidates(req: TripRequest) {
+    const [flights, stays] = await Promise.all([
       this.flights.execute({
-        origen: req.origen,
-        destino: req.destino,
-        fechaIda: req.salida,
-        fechaVuelta: req.vuelta,
-        pasajeros: req.personas,
-        maxResultados: CANDIDATOS,
+        origin: req.origin,
+        destination: req.destination,
+        departureDate: req.departure,
+        returnDate: req.returnDate,
+        passengers: req.travelers,
+        maxResults: CANDIDATES,
       }),
       this.accommodation.execute({
-        ciudad: req.destino,
-        fechaEntrada: req.salida,
-        fechaSalida: req.vuelta,
-        pasajeros: req.personas,
-        maxResultados: CANDIDATOS,
+        city: req.destination,
+        checkIn: req.departure,
+        checkOut: req.returnDate,
+        guests: req.travelers,
+        maxResults: CANDIDATES,
       }),
     ]);
 
-    // Todo el cálculo se hace en USD; las APIs devuelven USD y se verifica acá, no en el LLM.
-    const usd = (m: { moneda: string }) => m.moneda === 'USD';
-    return todasLasCombinaciones(
-      vuelos.vuelos.filter(usd),
-      alojamientos.alojamientos.filter(usd),
+    // All math is done in USD, which is what the APIs return; it is verified here, not by an LLM.
+    const usd = (m: { currency: string }) => m.currency === 'USD';
+    return allCombinations(
+      flights.flights.filter(usd),
+      stays.accommodations.filter(usd),
     );
   }
 
   async options(req: TripRequest): Promise<TripOptions> {
-    const [cotizacion, candidatas] = await Promise.all([
-      this.fx.getMep(),
-      this.candidatas(req),
-    ]);
-    if (candidatas.length === 0) {
-      throw new Error('No hay vuelos y alojamientos con precio para combinar.');
+    const candidates = await this.candidates(req);
+    if (candidates.length === 0) {
+      throw new Error('No flights and accommodations with prices to combine.');
     }
 
-    const rate = cotizacion.pesosPorDolar;
-    const conPrecio = (c: Combinacion): OpcionConPrecio => ({
-      ...c,
-      totalArs: Math.round(c.totalUsd * rate),
-    });
-    const maxUsd = req.presupuestoMax === null ? null : req.presupuestoMax / rate;
-
-    const opciones = elegirOpciones(candidatas, maxUsd);
-    if (opciones.length > 0) {
-      return {
-        estado: 'ok',
-        cotizacion,
-        opciones: opciones.map(conPrecio),
-        aviso: AVISO,
-      };
+    const options = pickOptions(candidates, req.maxBudget);
+    if (options.length > 0) {
+      return { status: 'ok', options, notice: NOTICE };
     }
 
-    const masBarata = conPrecio({ nivel: 'economica', ...candidatas[0] });
-    const alternativas = await this.alternativas(req, maxUsd!, conPrecio);
+    const cheapest: Combination = { level: 'cheapest', ...candidates[0] };
     return {
-      estado: 'presupuesto_insuficiente',
-      cotizacion,
-      opciones: [],
-      masBarata,
-      faltanteArs: masBarata.totalArs - req.presupuestoMax!,
-      alternativas,
-      aviso: AVISO,
+      status: 'over_budget',
+      options: [],
+      cheapest,
+      shortfall: cheapest.total - req.maxBudget!,
+      alternatives: await this.alternatives(req, req.maxBudget!),
+      notice: NOTICE,
     };
   }
 
   /**
-   * Prueba, con un tope de búsquedas, menos noches y una semana más tarde; devuelve
-   * solo las variantes cuya combinación más barata entra en el presupuesto.
+   * Tries, within a search cap, fewer nights and one week later; returns only the
+   * variants whose cheapest combination fits the budget.
    */
-  private async alternativas(
+  private async alternatives(
     req: TripRequest,
-    maxUsd: number,
-    conPrecio: (c: Combinacion) => OpcionConPrecio,
-  ): Promise<Alternativa[]> {
-    const noches = diasEntre(req.salida, req.vuelta);
-    const hoy = new Date().toISOString().slice(0, 10);
-    const variantes: Array<{ cambio: string; salida: string; vuelta: string }> = [];
-    if (noches >= 2) {
-      variantes.push({
-        cambio: 'Una noche menos',
-        salida: req.salida,
-        vuelta: sumarDias(req.vuelta, -1),
+    maxBudget: number,
+  ): Promise<Alternative[]> {
+    const nights = daysBetween(req.departure, req.returnDate);
+    const today = new Date().toISOString().slice(0, 10);
+    const variants: Array<{
+      change: string;
+      departure: string;
+      returnDate: string;
+    }> = [];
+    if (nights >= 2) {
+      variants.push({
+        change: 'One night fewer',
+        departure: req.departure,
+        returnDate: addDays(req.returnDate, -1),
       });
     }
-    if (noches >= 3) {
-      variantes.push({
-        cambio: 'Dos noches menos',
-        salida: req.salida,
-        vuelta: sumarDias(req.vuelta, -2),
+    if (nights >= 3) {
+      variants.push({
+        change: 'Two nights fewer',
+        departure: req.departure,
+        returnDate: addDays(req.returnDate, -2),
       });
     }
-    variantes.push({
-      cambio: 'Viajar una semana después',
-      salida: sumarDias(req.salida, 7),
-      vuelta: sumarDias(req.vuelta, 7),
+    variants.push({
+      change: 'Travel one week later',
+      departure: addDays(req.departure, 7),
+      returnDate: addDays(req.returnDate, 7),
     });
 
-    const intentos = variantes
-      .filter((v) => v.salida > hoy)
-      .slice(0, MAX_INTENTOS_ALTERNATIVAS);
-    const resultados = await Promise.all(
-      intentos.map(async (v): Promise<Alternativa | null> => {
+    const attempts = variants
+      .filter((v) => v.departure > today)
+      .slice(0, MAX_ALTERNATIVE_ATTEMPTS);
+    const results = await Promise.all(
+      attempts.map(async (v): Promise<Alternative | null> => {
         try {
-          const cands = await this.candidatas({ ...req, ...v });
-          const [mejor] = elegirOpciones(cands, maxUsd);
-          return mejor ? { ...v, opcion: conPrecio(mejor) } : null;
+          const found = await this.candidates({ ...req, ...v });
+          const [best] = pickOptions(found, maxBudget);
+          return best ? { ...v, option: best } : null;
         } catch (error) {
           this.logger.warn(
-            `Alternativa "${v.cambio}" falló: ${error instanceof Error ? error.message : error}`,
+            `Alternative "${v.change}" failed: ${error instanceof Error ? error.message : error}`,
           );
           return null;
         }
       }),
     );
-    return resultados.filter((a): a is Alternativa => a !== null);
+    return results.filter((a): a is Alternative => a !== null);
   }
 }
 
-function diasEntre(desde: string, hasta: string): number {
-  return Math.round((Date.parse(hasta) - Date.parse(desde)) / 86_400_000);
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
 }
 
-function sumarDias(fecha: string, dias: number): string {
-  const d = new Date(`${fecha}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }

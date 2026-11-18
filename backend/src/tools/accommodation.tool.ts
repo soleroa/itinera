@@ -3,33 +3,33 @@ import { JsonSchemaObject, Tool } from '../common/tool.interface';
 import { SerpApiHotelsClient } from './serpapi-hotels-client';
 
 interface AccommodationInput {
-  ciudad: string;
-  fechaEntrada: string;
-  fechaSalida: string;
-  pasajeros?: number;
-  presupuestoMaxPorNoche?: number;
-  /** Uso interno (no está en el schema del LLM): tope de resultados, por defecto 5. */
-  maxResultados?: number;
+  city: string;
+  checkIn: string;
+  checkOut: string;
+  guests?: number;
+  maxPricePerNight?: number;
+  /** Internal (not in the LLM schema): result cap, default 5. */
+  maxResults?: number;
 }
 
 const MAX_RESULTS = 5;
 
-export interface Alojamiento {
-  nombre: string;
-  tipo: 'hotel' | 'alquiler';
-  /** Ej: "Hotel de 3 estrellas"; ausente si Google no la informa. */
-  categoria?: string;
-  /** Puntaje de huéspedes sobre 5; ausente si no hay. */
-  puntaje?: number;
-  precioTotal: number;
-  precioPorNoche: number;
-  moneda: string;
-  /** Sitio del alojamiento o, si no tiene, su ficha en Google Hotels. */
-  enlace: string;
+export interface Accommodation {
+  name: string;
+  type: 'hotel' | 'rental';
+  /** E.g. "3-star hotel"; absent if Google does not report it. */
+  category?: string;
+  /** Guest rating out of 5; absent if none. */
+  rating?: number;
+  totalPrice: number;
+  pricePerNight: number;
+  currency: string;
+  /** The property's own site or, if it has none, its Google Hotels listing. */
+  link: string;
 }
 
 export interface AccommodationOutput {
-  alojamientos: Alojamiento[];
+  accommodations: Accommodation[];
 }
 
 @Injectable()
@@ -38,82 +38,81 @@ export class AccommodationTool
 {
   name = 'search_accommodation';
   description =
-    'Busca alojamientos disponibles en una ciudad para un rango de fechas, ' +
-    'opcionalmente filtrando por presupuesto máximo por noche.';
+    'Searches available accommodation in a city for a date range, ' +
+    'optionally filtering by maximum price per night. Prices are in USD.';
   inputSchema: JsonSchemaObject = {
     type: 'object',
     properties: {
-      ciudad: {
+      city: {
         type: 'string',
-        description: 'Nombre de la ciudad, ej: Bariloche',
+        description: 'City name, e.g. Bariloche',
       },
-      fechaEntrada: {
+      checkIn: {
         type: 'string',
-        description: 'Fecha de check-in en formato YYYY-MM-DD',
+        description: 'Check-in date in YYYY-MM-DD format',
       },
-      fechaSalida: {
+      checkOut: {
         type: 'string',
-        description: 'Fecha de check-out en formato YYYY-MM-DD',
+        description: 'Check-out date in YYYY-MM-DD format',
       },
-      pasajeros: {
+      guests: {
         type: 'number',
-        description: 'Cantidad de huéspedes adultos (opcional, por defecto 2)',
+        description: 'Number of adult guests (optional, default 2)',
       },
-      presupuestoMaxPorNoche: {
+      maxPricePerNight: {
         type: 'number',
-        description:
-          'Presupuesto máximo por noche, en la moneda que devuelva la API (opcional)',
+        description: 'Maximum price per night in USD (optional)',
       },
     },
-    required: ['ciudad', 'fechaEntrada', 'fechaSalida'],
+    required: ['city', 'checkIn', 'checkOut'],
   };
 
   constructor(private readonly hotels: SerpApiHotelsClient) {}
 
   async execute(input: AccommodationInput): Promise<AccommodationOutput> {
     const properties = await this.hotels.search(
-      input.ciudad,
-      input.fechaEntrada,
-      input.fechaSalida,
-      input.pasajeros ?? 2,
+      input.city,
+      input.checkIn,
+      input.checkOut,
+      input.guests ?? 2,
     );
 
-    const alojamientos = properties
+    const accommodations = properties
       .filter(
         (p) =>
           (p.rate_per_night?.extracted_lowest ?? 0) > 0 &&
           (p.total_rate?.extracted_lowest ?? 0) > 0,
       )
-      .map((p): Alojamiento => {
-        const nombre = p.name;
+      .map((p): Accommodation => {
+        const name = p.name;
         return {
-          nombre,
-          tipo: p.type === 'hotel' ? 'hotel' : 'alquiler',
-          categoria: p.hotel_class,
-          puntaje: p.overall_rating
+          name,
+          type: p.type === 'hotel' ? 'hotel' : 'rental',
+          category: p.hotel_class,
+          rating: p.overall_rating
             ? Math.round(p.overall_rating * 10) / 10
             : undefined,
-          precioTotal: p.total_rate!.extracted_lowest!,
-          precioPorNoche: p.rate_per_night!.extracted_lowest!,
-          moneda: 'USD',
-          enlace:
+          totalPrice: p.total_rate!.extracted_lowest!,
+          pricePerNight: p.rate_per_night!.extracted_lowest!,
+          currency: 'USD',
+          link:
             p.link ??
             `https://www.google.com/travel/search?${new URLSearchParams({
-              q: `${nombre} ${input.ciudad}`,
-              hl: 'es',
-              gl: 'ar',
+              q: `${name} ${input.city}`,
+              hl: 'en',
+              gl: 'us',
               curr: 'USD',
             })}`,
         };
       })
       .filter(
         (a) =>
-          input.presupuestoMaxPorNoche === undefined ||
-          a.precioPorNoche <= input.presupuestoMaxPorNoche,
+          input.maxPricePerNight === undefined ||
+          a.pricePerNight <= input.maxPricePerNight,
       )
-      .sort((a, b) => a.precioPorNoche - b.precioPorNoche)
-      .slice(0, input.maxResultados ?? MAX_RESULTS);
+      .sort((a, b) => a.pricePerNight - b.pricePerNight)
+      .slice(0, input.maxResults ?? MAX_RESULTS);
 
-    return { alojamientos };
+    return { accommodations };
   }
 }

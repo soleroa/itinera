@@ -5,7 +5,7 @@ import { TripPlannerService, TripRequest } from './trip-planner.service';
 export class PlannerController {
   constructor(private readonly planner: TripPlannerService) {}
 
-  /** Combinaciones vuelo + alojamiento que entran en el presupuesto (código determinístico, sin LLM). */
+  /** Flight + accommodation combinations that fit the budget (deterministic code, no LLM). */
   @Post('options')
   options(@Body() body: Partial<TripRequest>) {
     return this.planner.options(this.planner.validate(body));
