@@ -1,14 +1,14 @@
 # Itinera — frontend
 
-UI de Itinera: un formulario guiado, de a una pregunta por pantalla (destino,
-origen, fechas, personas y presupuesto), y una pantalla con las combinaciones de
-vuelo + alojamiento que entran en el presupuesto (económica, equilibrada y la
-mejor), o las alternativas si no alcanza. No es un chat. React + Vite + Tailwind, sin
-routing ni state management extra — es una sola pantalla.
+Itinera's UI: a guided form, one question per screen (destination, origin, dates,
+travelers and budget), and a screen with the flight + accommodation combinations
+that fit the budget (cheapest, balanced and best), or the alternatives if it
+falls short. It is not a chat. React + Vite + Tailwind, with no routing or extra
+state management — it is a single screen.
 
-## Cómo correr
+## Running it
 
-Con el backend corriendo en `http://localhost:3001` (ver
+With the backend running at `http://localhost:3001` (see
 [../backend/README.md](../backend/README.md)):
 
 ```bash
@@ -16,41 +16,40 @@ npm install
 npm run dev   # http://localhost:5173
 ```
 
-En desarrollo, Vite proxea `/trips` y `/agent` hacia `http://localhost:3001`
-(ver `vite.config.ts`), así que no hace falta configurar nada más. Para apuntar
-a otro backend (por ejemplo en producción), seteá `VITE_TRIPS_URL` (y
-`VITE_API_URL` para el agente) — ver `.env.example`.
+In development, Vite proxies `/trips` and `/agent` to `http://localhost:3001`
+(see `vite.config.ts`), so nothing else needs configuring. To point at another
+backend (for example in production), set `VITE_TRIPS_URL` (and `VITE_API_URL`
+for the agent) — see `.env.example`.
 
-## Analítica (PostHog)
+## Analytics (PostHog)
 
-Opcional: seteá `VITE_POSTHOG_KEY` (y `VITE_POSTHOG_HOST` si usás la región EU o
-self-hosted) en `.env`. Sin key no se envía nada. Se capturan pageviews y los
-eventos `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` y
-`trip_option_chosen`; no se
-envían destino, origen ni fechas.
+Optional: set `VITE_POSTHOG_KEY` (and `VITE_POSTHOG_HOST` if you use the EU region
+or self-hosting) in `.env`. Without a key nothing is sent. Pageviews and the
+events `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` and
+`trip_option_chosen` are captured; destination, origin and dates are not sent.
 
-## Estructura
+## Structure
 
 ```
 src/
-├── App.tsx                    → fase de la pantalla (planning / loading / options / chosen / error)
+├── App.tsx                    → screen phase (planning / loading / options / chosen / error)
 ├── components/
-│   ├── TripWizard.tsx         → formulario guiado paso a paso
-│   ├── TripOptions.tsx        → combinaciones, alternativas, cotización y aviso
-│   └── TripResult.tsx         → carga, opción elegida (vuelo + alojamiento) y errores
+│   ├── TripWizard.tsx         → step-by-step guided form
+│   ├── TripOptions.tsx        → combinations, alternatives and budget notice
+│   └── TripResult.tsx         → loading, chosen option (flight + accommodation) and errors
 ├── lib/
-│   ├── analytics.ts           → init de PostHog y helper track()
-│   ├── trips-client.ts        → fetch a POST /trips/options
-│   ├── agent-client.ts        → fetch a POST /agent (agente ReAct, hoy sin uso en la UI)
-│   └── trip-prompt.ts         → formateo de pesos, USD y fechas
-└── types.ts                   → tipos del pedido y de la respuesta del planner
+│   ├── analytics.ts           → PostHog init and track() helper
+│   ├── trips-client.ts        → fetch to POST /trips/options
+│   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)
+│   └── format.ts              → USD and date formatting
+└── types.ts                   → request and planner response types
 ```
 
-## Comandos
+## Commands
 
 ```bash
-npm run dev       # servidor de desarrollo con HMR
-npm run build     # typecheck + build de producción a dist/
+npm run dev       # dev server with HMR
+npm run build     # typecheck + production build to dist/
 npm run lint      # oxlint
-npm run preview   # sirve el build de dist/ localmente
+npm run preview   # serve the dist/ build locally
 ```

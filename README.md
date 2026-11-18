@@ -1,78 +1,74 @@
 # Itinera
 
-Planificador de viajes que busca **vuelos y alojamientos reales** y arma
-combinaciones que **entran en tu presupuesto en pesos argentinos**.
+Trip planner that searches **real flights and accommodation** and builds
+combinations that **fit your budget in USD**.
 
-Cargás origen, destino, fechas, cantidad de personas y presupuesto, y Itinera te
-devuelve hasta tres combinaciones de vuelo + alojamiento (económica, equilibrada
-y la mejor). Si el presupuesto no alcanza, te dice cuánto falta y te propone
-variantes más baratas.
+Enter an origin, destination, dates, number of travelers and a budget, and Itinera
+returns up to three flight + accommodation combinations (cheapest, balanced and
+best). If the budget falls short, it tells you by how much and suggests cheaper
+variants.
 
-> **Estado:** proyecto en desarrollo. La búsqueda de combinaciones según
-> presupuesto funciona de punta a punta; el itinerario día por día con
-> transporte local todavía no está implementado (ver [Roadmap](#roadmap)).
+> **Status:** work in progress. Budget-aware combination search works end to end;
+> the day-by-day itinerary with local transport is not implemented yet (see the
+> [Roadmap](#roadmap)).
 
-## Qué hace hoy
+## What it does today
 
-- Busca vuelos de ida y vuelta (Google Flights) y alojamientos (Google Hotels,
-  vía SerpApi) con precios reales.
-- Convierte el presupuesto con el **dólar MEP** actual y verifica en código que
-  vuelo + alojamiento entren.
-- Ofrece hasta tres combinaciones: **económica**, **equilibrada** (mejor
-  relación calidad/precio) y **la mejor** (mayor calidad dentro del presupuesto).
-- Si no alcanza: informa el faltante y prueba alternativas (una o dos noches
-  menos, o viajar una semana después), con un tope de 3 búsquedas extra.
-- Avisa siempre que el presupuesto cubre **solo vuelo y alojamiento**: comida,
-  entradas y transporte local no están incluidos.
+- Searches round-trip flights (Google Flights) and accommodation (Google Hotels,
+  via SerpApi) with real prices.
+- Verifies in code that flight + accommodation fit your USD budget.
+- Offers up to three combinations: **cheapest**, **balanced** (best
+  quality-to-price ratio) and **best** (highest quality within the budget).
+- If the budget falls short: reports the shortfall and tries alternatives (one or
+  two fewer nights, or traveling one week later), capped at 3 extra searches.
+- Always states that the budget covers **flight and accommodation only**: food,
+  tickets and local transport are not included.
 
-## Cómo funciona
+## How it works
 
 ```
-Formulario (React)
-   │  POST /trips/options  { origen, destino, salida, vuelta, personas, presupuestoMax }
+Form (React)
+   │  POST /trips/options  { origin, destination, departure, returnDate, travelers, maxBudget }
    ▼
-TripPlannerService (NestJS, sin LLM)
-   ├─ FlightsTool        → Google Flights (fli-js)       ┐ en paralelo
-   ├─ AccommodationTool  → Google Hotels (SerpApi)       ┘
-   ├─ FxService          → dólar MEP (dolarapi.com)
-   └─ combinations.ts    → arma pares vuelo+hotel, filtra por presupuesto,
-                           elige económica / equilibrada / mejor
+TripPlannerService (NestJS, no LLM)
+   ├─ FlightsTool        → Google Flights (fli-js)      ┐ in parallel
+   ├─ AccommodationTool  → Google Hotels (SerpApi)      ┘
+   └─ combinations.ts    → builds flight+hotel pairs, filters by budget,
+                           picks cheapest / balanced / best
 ```
 
-**Decisión de diseño central:** todo lo verificable lo calcula el código, no un
-modelo de lenguaje. Un LLM chico (el proyecto empezó con `qwen3:8b`) suma mal e
-inventa precios; por eso las sumas, la conversión de moneda y el filtro por
-presupuesto son determinísticos y se hacen sobre los precios que devuelven las
-APIs.
+**Core design decision:** anything verifiable is computed by code, not by a
+language model. A small LLM (the project started with `qwen3:8b`) adds badly and
+invents prices, so sums and the budget filter are deterministic and run on the
+prices the APIs return.
 
-El repo conserva además el agente original (patrón ReAct, `POST /agent`), que
-usa un LLM local con tools. Ya no lo usa el frontend; sigue como base para el
-itinerario por día. Detalles en [backend/README.md](backend/README.md).
+The repo also keeps the original agent (ReAct pattern, `POST /agent`), which uses
+a local LLM with tools. The frontend no longer uses it; it stays as the base for
+the day-by-day itinerary. Details in [backend/README.md](backend/README.md).
 
-## Estructura
+## Structure
 
 ```
 itinera/
-├── backend/    → API NestJS: planner determinístico + agente ReAct
-└── frontend/   → UI en React + Vite + Tailwind (formulario guiado y resultados)
+├── backend/    → NestJS API: deterministic planner + ReAct agent
+└── frontend/   → React + Vite + Tailwind UI (guided form and results)
 ```
 
-## Cómo correrlo
+## Running it
 
-### Requisitos
+### Requirements
 
-- **Node.js >= 22.12** (el paquete de vuelos es ESM y se carga con `require(esm)`).
-- Una **API key de SerpApi** ([serpapi.com](https://serpapi.com/manage-api-key);
-  el plan gratuito tiene un cupo mensual de búsquedas). Cada búsqueda de
-  combinaciones consume una búsqueda de hoteles, y hasta tres más si hay que
-  probar alternativas.
-- **Ollama** solo si querés usar el agente (`/agent`); el planner no lo necesita.
+- **Node.js >= 22.12** (the flights package is ESM and loaded with `require(esm)`).
+- A **SerpApi API key** ([serpapi.com](https://serpapi.com/manage-api-key); the
+  free plan has a monthly search quota). Each combination search uses one hotel
+  search, plus up to three more when trying alternatives.
+- **Ollama** only if you want the agent (`/agent`); the planner does not need it.
 
 ### 1. Backend
 
 ```bash
 cd backend
-cp .env.example .env      # completá SERPAPI_KEY
+cp .env.example .env      # fill in SERPAPI_KEY
 npm install
 npm run start:dev         # http://localhost:3001
 ```
@@ -85,69 +81,64 @@ npm install
 npm run dev               # http://localhost:5173
 ```
 
-En desarrollo, Vite redirige `/trips` y `/agent` al backend en
-`localhost:3001`, así que no hace falta más configuración.
+In development, Vite forwards `/trips` and `/agent` to the backend at
+`localhost:3001`, so no further configuration is needed.
 
-### Probar la API directamente
+### Trying the API directly
 
 ```bash
 curl -X POST http://localhost:3001/trips/options \
   -H 'Content-Type: application/json' \
   -d '{
-    "origen": "Buenos Aires",
-    "destino": "Bariloche",
-    "salida": "2026-12-15",
-    "vuelta": "2026-12-22",
-    "personas": 2,
-    "presupuestoMax": 3000000
+    "origin": "Buenos Aires",
+    "destination": "Bariloche",
+    "departure": "2026-12-15",
+    "returnDate": "2026-12-22",
+    "travelers": 2,
+    "maxBudget": 2500
   }'
 ```
 
-La respuesta incluye `estado` (`ok` o `presupuesto_insuficiente`), las
-`opciones` con su total en USD y en pesos, la `cotizacion` usada y, si no
-alcanza, `faltanteArs` y `alternativas`.
+The response includes `status` (`ok` or `over_budget`), the `options` with their
+USD total and, when over budget, `shortfall` and `alternatives`. All amounts are
+in USD.
 
-## Configuración
+## Configuration
 
-Variables del backend (`backend/.env`):
+Backend variables (`backend/.env`):
 
-| Variable | Requerida | Default | Uso |
+| Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SERPAPI_KEY` | Sí | — | Búsqueda de alojamientos |
-| `USD_ARS_RATE` | No | — | Cotización de respaldo si falla dolarapi.com |
-| `FX_API_URL` | No | `https://dolarapi.com/v1/dolares/bolsa` | Fuente del dólar MEP |
-| `PORT` | No | `3001` | Puerto del servidor |
-| `SERPAPI_BASE_URL` | No | `https://serpapi.com/search.json` | Endpoint de SerpApi |
-| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | `http://localhost:11434` / `qwen3:8b` | Solo para `/agent` |
+| `SERPAPI_KEY` | Yes | — | Accommodation search |
+| `PORT` | No | `3001` | Server port |
+| `SERPAPI_BASE_URL` | No | `https://serpapi.com/search.json` | SerpApi endpoint |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | `http://localhost:11434` / `qwen3:8b` | `/agent` only |
 
-Frontend (`frontend/.env`, todas opcionales): `VITE_API_URL`, `VITE_TRIPS_URL`
-para apuntar a otro backend y `VITE_POSTHOG_KEY` para analítica. Ver
+Frontend (`frontend/.env`, all optional): `VITE_API_URL` and `VITE_TRIPS_URL` to
+point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 [frontend/README.md](frontend/README.md).
 
-## Limitaciones conocidas
+## Known limitations
 
-- **Vuelos por scraping no oficial.** Se usan los datos de Google Flights a
-  través de [fli-js](backend/vendor/fli-js/VENDORED.md), sin API key. Puede
-  romperse si Google cambia su formato y su uso puede no estar permitido por los
-  términos del servicio: está pensado como proyecto personal/educativo, no para
-  producción comercial.
-- **Costo por búsqueda.** SerpApi limita las búsquedas por plan; no hay caché ni
-  límite por usuario todavía.
-- **El mínimo del presupuesto no se verifica**, solo el tope.
-- **Precios en dólares.** Las APIs devuelven USD; la conversión usa el MEP y
-  puede diferir del costo real con tu tarjeta.
-- **Aeropuertos:** las ciudades argentinas más buscadas están resueltas a mano;
-  el resto depende de la búsqueda de fli-js.
+- **Flights come from unofficial scraping.** Data from Google Flights is read
+  through [fli-js](backend/vendor/fli-js/VENDORED.md), with no API key. It can
+  break if Google changes its format, and its use may not be allowed by Google's
+  terms of service: this is a personal/educational project, not meant for
+  commercial production use.
+- **Cost per search.** SerpApi limits searches per plan; there is no caching or
+  per-user limit yet.
+- **Airports:** the most searched Argentine cities are resolved by hand; anything
+  else relies on fli-js's airport search.
 
 ## Roadmap
 
-- [ ] Itinerario por día: lugares con Google Places, agrupados por cercanía
-  (clustering y orden por vecino más cercano en código, no en el prompt).
-- [ ] Transporte local paso a paso con Google Routes (`TRANSIT`), con
-  alternativa a pie o en auto cuando no hay datos de transporte público.
-- [ ] Caché de Places/Routes y límites por usuario para controlar costos.
-- [ ] Tests automatizados de la lógica de combinaciones.
+- [ ] Day-by-day itinerary: places from Google Places, grouped by proximity
+  (clustering and nearest-neighbor ordering in code, not in the prompt).
+- [ ] Step-by-step local transport with Google Routes (`TRANSIT`), falling back to
+  walking or driving when there is no public transport data.
+- [ ] Caching of Places/Routes results and per-user limits to control costs.
+- [ ] Automated tests for the combination logic.
 
-## Licencia
+## License
 
-Pendiente de definir. `backend/vendor/fli-js` es MIT (ver su `LICENSE`).
+To be decided. `backend/vendor/fli-js` is MIT (see its `LICENSE`).

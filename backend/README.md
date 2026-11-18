@@ -1,63 +1,62 @@
 # Itinera — backend
 
-API de Itinera. Tiene dos caminos independientes:
+Itinera's API. It has two independent paths:
 
-1. **Planner determinístico** (`POST /trips/options`): busca vuelos y alojamientos
-   reales y arma combinaciones que entran en el presupuesto. **No usa LLM** y es
-   lo que consume el frontend.
-2. **Agente ReAct** (`POST /agent`): a partir de un pedido en lenguaje natural
-   razona → llama una tool → observa → repite → responde. Necesita Ollama. Es la
-   base para el itinerario por día.
+1. **Deterministic planner** (`POST /trips/options`): searches real flights and
+   accommodation and builds combinations that fit the budget. It **uses no LLM**
+   and is what the frontend consumes.
+2. **ReAct agent** (`POST /agent`): from a natural-language request it reasons →
+   calls a tool → observes → repeats → answers. Needs Ollama. It is the base for
+   the day-by-day itinerary.
 
-El frontend (React + Vite + Tailwind) vive en `../frontend` — ver
+The frontend (React + Vite + Tailwind) lives in `../frontend` — see
 [frontend/README.md](../frontend/README.md).
 
 ## Stack
 
 - **NestJS + TypeScript**
-- **LLM**: Ollama local (`qwen3:8b`, para desarrollo gratis). El contrato
-  `LlmProvider` permite sumar otro proveedor (ej: la API de Anthropic) sin
-  reescribir la lógica del agente — ver
-  [Por qué `LlmProvider` vive en `agent/`](#por-qué-llmprovider-vive-en-agent).
+- **LLM**: local Ollama (`qwen3:8b`, free for development). The `LlmProvider`
+  contract allows adding another provider (e.g. the Anthropic API) without
+  rewriting the agent logic — see
+  [Why `LlmProvider` lives in `agent/`](#why-llmprovider-lives-in-agent).
 
-## Arquitectura
+## Architecture
 
-### El planner (`src/planner/`)
+### The planner (`src/planner/`)
 
-Principio: **lo verificable lo calcula el código**, no el modelo. Un LLM de 8B
-suma mal e inventa precios, así que el presupuesto se verifica sobre los precios
-reales de las APIs.
+Principle: **anything verifiable is computed by code**, not by the model. An 8B
+LLM adds badly and invents prices, so the budget is checked against the real
+prices from the APIs. All amounts are in USD.
 
-| Archivo | Responsabilidad |
+| File | Responsibility |
 |---|---|
-| `trip-planner.service.ts` | Valida el pedido, busca vuelos y hoteles en paralelo, convierte el presupuesto y decide el estado (`ok` / `presupuesto_insuficiente`). Si no alcanza, prueba hasta 3 alternativas (una o dos noches menos, una semana después) |
-| `combinations.ts` | Funciones puras: todos los pares vuelo+hotel, y selección de **económica** (más barata), **equilibrada** (mayor calidad/precio) y **mejor** (mayor calidad). Calidad = puntaje del hotel + 0,3 × estrellas − 0,5 × escalas |
-| `fx.service.ts` | Dólar MEP (venta) de dolarapi.com con caché de 30 min; si falla usa `USD_ARS_RATE` |
+| `trip-planner.service.ts` | Validates the request, searches flights and hotels in parallel and decides the status (`ok` / `over_budget`). When over budget it tries up to 3 alternatives (one or two fewer nights, one week later) |
+| `combinations.ts` | Pure functions: every flight+hotel pair, and selection of **cheapest** (lowest total), **balanced** (best quality/price) and **best** (highest quality). Quality = hotel rating + 0.3 × stars − 0.5 × stops |
 | `planner.controller.ts` | `POST /trips/options` |
 
-El planner reutiliza `FlightsTool` y `AccommodationTool` llamándolas directo (con
-el parámetro interno `maxResultados`, que no está en el schema que ve el LLM).
+The planner reuses `FlightsTool` and `AccommodationTool` by calling them directly
+(with the internal `maxResults` parameter, which is not in the schema the LLM sees).
 
-### Los tres módulos del agente
+### The agent's three modules
 
-| Módulo | Responsabilidad | Qué NO sabe |
+| Module | Responsibility | What it does NOT know |
 |---|---|---|
-| `AgentModule` | El loop ReAct: razona, decide, orquesta | No sabe si el LLM es Ollama o Anthropic, ni cómo funciona cada tool por dentro |
-| `LlmModule` | Le habla a un modelo (Ollama o Anthropic) y traduce la respuesta a una decisión genérica | No sabe qué es un itinerario ni ejecuta tools |
-| `ToolsModule` | Expone las acciones que el agente puede ejecutar (clima, vuelos, alojamiento) | No sabe nada de LLMs ni del loop |
+| `AgentModule` | The ReAct loop: reasons, decides, orchestrates | Whether the LLM is Ollama or Anthropic, or how each tool works inside |
+| `LlmModule` | Talks to a model (Ollama or Anthropic) and turns its reply into a generic decision | What an itinerary is; it does not run tools |
+| `ToolsModule` | Exposes the actions the agent can run (weather, flights, accommodation) | Anything about LLMs or the loop |
 
-Están separados en tres módulos de Nest (no carpetas sueltas) para que las
-dependencias entre dominios sean explícitas vía `imports`/`exports` — si
-`ToolsModule` intentara importar algo de `AgentModule`, sería una señal de
-alarma visible en el código, no un import silencioso.
+They are separate Nest modules (not loose folders) so dependencies between
+domains are explicit through `imports`/`exports` — if `ToolsModule` tried to
+import something from `AgentModule`, it would be a visible alarm in the code,
+not a silent import.
 
-### El contrato `Tool` (`src/common/tool.interface.ts`)
+### The `Tool` contract (`src/common/tool.interface.ts`)
 
 ```ts
 export interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: JsonSchemaObject; // JSON Schema, tipo objeto en la raíz
+  inputSchema: JsonSchemaObject; // JSON Schema, object at the root
 }
 
 export interface Tool<TInput = unknown, TOutput = unknown> extends ToolDefinition {
@@ -65,15 +64,15 @@ export interface Tool<TInput = unknown, TOutput = unknown> extends ToolDefinitio
 }
 ```
 
-- **`ToolDefinition` separado de `Tool`**: `LlmModule` solo necesita la parte
-  declarativa (nombre, descripción, schema) para armar el payload hacia el
-  modelo — nunca ejecuta nada. Quien sí ejecuta (`execute()`) es el
-  `AgentModule`, cuando el LLM decide llamar a una tool.
-- **Vive en `common/`, no en `tools/` ni en `llm/`**: es un contrato entre dos
-  pares (`ToolsModule` y `LlmModule`), ninguno de los dos es "dueño" del tipo.
-  Ambos lo importan desde un lugar neutral.
+- **`ToolDefinition` separate from `Tool`**: `LlmModule` only needs the
+  declarative part (name, description, schema) to build the payload for the model
+  — it never executes anything. `AgentModule` is the one that runs `execute()`
+  when the LLM decides to call a tool.
+- **Lives in `common/`, not in `tools/` or `llm/`**: it is a contract between two
+  peers (`ToolsModule` and `LlmModule`) and neither "owns" the type. Both import
+  it from a neutral place.
 
-### Por qué `LlmProvider` vive en `agent/`
+### Why `LlmProvider` lives in `agent/`
 
 ```ts
 // src/agent/llm-provider.ts
@@ -82,149 +81,141 @@ export abstract class LlmProvider {
 }
 ```
 
-A diferencia de `Tool`, esta relación no es entre pares: es algo que
-`AgentModule` **necesita** para funcionar, y `LlmModule` lo **implementa**.
-Es inversión de dependencias clásica — el módulo de alto nivel (el loop,
-que contiene la lógica de negocio) define qué necesita; el módulo de bajo
-nivel (un detalle de implementación, "hoy es Ollama, mañana puede ser
-Anthropic") se adapta a esa definición. Por eso el archivo vive en `agent/`,
-y `OllamaProvider` (en `llm/`) lo implementa, no al revés.
+Unlike `Tool`, this is not a relationship between peers: it is something
+`AgentModule` **needs** in order to work, and `LlmModule` **implements**. It is
+classic dependency inversion — the high-level module (the loop, which holds the
+business logic) defines what it needs; the low-level module (an implementation
+detail: "Ollama today, Anthropic tomorrow") adapts to that definition. That is
+why the file lives in `agent/`, and `OllamaProvider` (in `llm/`) implements it,
+not the other way around.
 
-Es una `abstract class` y no una `interface` porque las interfaces de
-TypeScript desaparecen en runtime y Nest no las puede usar como token de
-inyección de dependencias. La abstract class sobrevive y sirve como token:
-`ReactAgentService` pide `private readonly llm: LlmProvider` en su
-constructor sin saber (ni poder saber) qué implementación hay detrás. Esa
-decisión se toma una sola vez, en `llm.module.ts`:
+It is an `abstract class` and not an `interface` because TypeScript interfaces
+disappear at runtime and Nest cannot use them as dependency-injection tokens. The
+abstract class survives and serves as the token: `ReactAgentService` asks for
+`private readonly llm: LlmProvider` in its constructor without knowing (or being
+able to know) which implementation is behind it. That decision is made once, in
+`llm.module.ts`:
 
 ```ts
 providers: [{ provide: LlmProvider, useClass: OllamaProvider }],
 ```
 
-### El loop ReAct (`src/agent/react-agent.service.ts`)
+### The ReAct loop (`src/agent/react-agent.service.ts`)
 
 ```
 POST /agent {"message": "..."}
   → ReactAgentService.run()
       → messages = [{role: user, content: "..."}]
-      → repite hasta 5 veces:
+      → repeat up to 5 times:
           1. llm.decide(messages, tools)              → LlmProvider
-          2. si decide "final_answer"                  → devuelve texto, listo
-          3. si decide "tool_call"                      → busca la tool en
-             ToolRegistryService, la ejecuta, agrega el resultado como
-             mensaje role:"tool" (la Observation del ReAct), repite
+          2. if it decides "final_answer"             → return the text, done
+          3. if it decides "tool_call"                → look the tool up in
+             ToolRegistryService, run it, append the result as a
+             role:"tool" message (ReAct's Observation), repeat
 ```
 
-Si pasa el límite de vueltas sin llegar a una respuesta final, tira error
-(no hay manejo elegante todavía — es intencional, es el loop más simple
-posible).
+If it goes past the turn limit without a final answer it throws (no graceful
+handling yet — intentionally the simplest possible loop).
 
-### Registro de tools (`src/tools/tool-registry.service.ts`)
+### Tool registry (`src/tools/tool-registry.service.ts`)
 
-Por ahora `ToolRegistryService` recibe cada tool por constructor
-(`constructor(weatherTool, accommodationTool, flightsTool) {...}`). Con pocas
-tools es lo más simple y explícito. Con más tools esa
-lista de parámetros va a crecer, y ahí hay que decidir si se migra a un
-patrón de inyección múltiple de Nest (un token compartido con un array de
-tools) — deliberadamente no resuelto todavía.
+For now `ToolRegistryService` receives each tool through its constructor. With a
+few tools that is the simplest and most explicit option. With more, that
+parameter list will grow, and then it will need to move to Nest's multi-injection
+pattern (a shared token with an array of tools) — deliberately left open for now.
 
-## Estructura de carpetas
+## Folder structure
 
 ```
 backend/
 ├── src/
-│   ├── main.ts                    → bootstrap, escucha en PORT (default 3001)
-│   ├── app.module.ts              → módulo raíz
+│   ├── main.ts                    → bootstrap, listens on PORT (default 3001)
+│   ├── app.module.ts              → root module
 │   ├── common/
-│   │   └── tool.interface.ts      → contrato Tool / ToolDefinition
+│   │   └── tool.interface.ts      → Tool / ToolDefinition contract
 │   ├── planner/
-│   │   ├── trip-planner.service.ts → combinaciones según presupuesto + alternativas
-│   │   ├── combinations.ts        → selección económica / equilibrada / mejor
-│   │   ├── fx.service.ts          → dólar MEP
+│   │   ├── trip-planner.service.ts → budget-aware combinations + alternatives
+│   │   ├── combinations.ts        → cheapest / balanced / best selection
 │   │   ├── planner.controller.ts  → POST /trips/options
 │   │   └── planner.module.ts
 │   ├── agent/
-│   │   ├── llm-provider.ts        → contrato LlmProvider (abstract class)
-│   │   ├── react-agent.service.ts → el loop ReAct
+│   │   ├── llm-provider.ts        → LlmProvider contract (abstract class)
+│   │   ├── react-agent.service.ts → the ReAct loop
 │   │   ├── agent.controller.ts    → POST /agent
 │   │   └── agent.module.ts
 │   ├── llm/
-│   │   ├── ollama.provider.ts     → implementación de LlmProvider vía Ollama
-│   │   └── llm.module.ts          → decide qué implementación usar
+│   │   ├── ollama.provider.ts     → LlmProvider implementation via Ollama
+│   │   └── llm.module.ts          → decides which implementation to use
 │   └── tools/
-│       ├── weather.tool.ts        → tool de clima (hardcodeada, sin API real)
-│       ├── accommodation.tool.ts  → tool de alojamiento, precios reales de Google Hotels
-│       ├── serpapi-hotels-client.ts → cliente de SerpApi (engine google_hotels)
-│       ├── flights.tool.ts        → tool de vuelos, vía Google Flights (fli-js)
+│       ├── weather.tool.ts        → weather tool (hardcoded, no real API)
+│       ├── accommodation.tool.ts  → accommodation tool, real Google Hotels prices
+│       ├── serpapi-hotels-client.ts → SerpApi client (google_hotels engine)
+│       ├── flights.tool.ts        → flights tool, via Google Flights (fli-js)
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
 └── vendor/
-    └── fli-js/                    → build vendorizado de fli-js (ver VENDORED.md)
+    └── fli-js/                    → vendored fli-js build (see VENDORED.md)
 ```
 
-## Cómo correr
+## Running it
 
-Requiere Node >= 22.12.
+Requires Node >= 22.12.
 
 ```bash
-cp .env.example .env     # completá SERPAPI_KEY
+cp .env.example .env     # fill in SERPAPI_KEY
 npm install
-npm run start:dev        # http://localhost:3001, con watch
+npm run start:dev        # http://localhost:3001, with watch
 ```
 
-Variables de entorno:
+Environment variables:
 
-| Variable | Default | Uso |
+| Variable | Default | Purpose |
 |---|---|---|
-| `SERPAPI_KEY` | — | **Requerida.** Alojamientos. Se obtiene en [serpapi.com](https://serpapi.com/manage-api-key) (plan gratuito con cupo mensual) |
-| `USD_ARS_RATE` | — | Cotización de respaldo si falla dolarapi.com |
-| `FX_API_URL` | `https://dolarapi.com/v1/dolares/bolsa` | Fuente del dólar MEP |
-| `PORT` | `3001` | Puerto del servidor |
-| `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | Endpoint de SerpApi |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Solo `/agent`: dónde está Ollama |
-| `OLLAMA_MODEL` | `qwen3:8b` | Solo `/agent`: qué modelo pedirle |
+| `SERPAPI_KEY` | — | **Required.** Accommodation. Get one at [serpapi.com](https://serpapi.com/manage-api-key) (free plan with a monthly quota) |
+| `PORT` | `3001` | Server port |
+| `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | SerpApi endpoint |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | `/agent` only: where Ollama is |
+| `OLLAMA_MODEL` | `qwen3:8b` | `/agent` only: which model to ask for |
 
-Sin `SERPAPI_KEY` la búsqueda de alojamientos falla (no hay datos de relleno).
-Cada búsqueda consume una del cupo de SerpApi.
+Without `SERPAPI_KEY`, accommodation search fails (there is no placeholder data).
+Each search uses one from the SerpApi quota.
 
-### Probar el planner
+### Trying the planner
 
 ```bash
 curl -X POST http://localhost:3001/trips/options \
   -H 'Content-Type: application/json' \
-  -d '{"origen":"Buenos Aires","destino":"Bariloche","salida":"2026-12-15","vuelta":"2026-12-22","personas":2,"presupuestoMax":3000000}'
+  -d '{"origin":"Buenos Aires","destination":"Bariloche","departure":"2026-12-15","returnDate":"2026-12-22","travelers":2,"maxBudget":2500}'
 ```
 
-### Probar el agente (opcional)
+### Trying the agent (optional)
 
-Requiere [Ollama](https://ollama.com) con `qwen3:8b`:
+Requires [Ollama](https://ollama.com) with `qwen3:8b`:
 
 ```bash
 brew install ollama && brew services start ollama && ollama pull qwen3:8b
 curl -X POST http://localhost:3001/agent \
   -H 'Content-Type: application/json' \
-  -d '{"message":"¿Qué tiempo hace en Bariloche?"}'
+  -d '{"message":"What is the weather like in Bariloche?"}'
 ```
 
-## Estado actual
+## Current status
 
-**Hecho:**
-- Planner determinístico (`POST /trips/options`): combinaciones vuelo+alojamiento
-  según presupuesto en pesos (dólar MEP), alternativas más baratas y aviso de lo
-  que el presupuesto no cubre
-- Tool de vuelos (`search_flights`) vía Google Flights con
-  [fli-js](vendor/fli-js/VENDORED.md): sin API key, ciudad → aeropuertos, ida o
-  ida y vuelta. Es scraping no oficial: puede romperse si Google cambia su
-  formato
-- Tool de alojamiento (`search_accommodation`) vía Google Hotels con
-  [SerpApi](https://serpapi.com): precios y disponibilidad reales, con link al
-  sitio de cada alojamiento
-- Agente ReAct con `OllamaProvider`, y una tool de clima hardcodeada (sin API real)
+**Done:**
+- Deterministic planner (`POST /trips/options`): flight + accommodation
+  combinations within a USD budget, cheaper alternatives and a notice of what the
+  budget does not cover
+- Flights tool (`search_flights`) via Google Flights with
+  [fli-js](vendor/fli-js/VENDORED.md): no API key, city → airports, one-way or
+  round trip. It is unofficial scraping: it can break if Google changes its format
+- Accommodation tool (`search_accommodation`) via Google Hotels with
+  [SerpApi](https://serpapi.com): real prices and availability, with a link to
+  each property's site
+- ReAct agent with `OllamaProvider`, and a hardcoded weather tool (no real API)
 
-**Pendiente:**
-- Itinerario por día con Google Places (agrupado por cercanía) y transporte local
-  con Google Routes
-- Caché y límites por usuario para controlar costos de APIs
-- Tests automatizados de `combinations.ts`
-- Verificar el mínimo del presupuesto (hoy solo se respeta el tope)
-- Manejo de errores más prolijo en el loop del agente
+**Pending:**
+- Day-by-day itinerary with Google Places (grouped by proximity) and local
+  transport with Google Routes
+- Caching and per-user limits to control API costs
+- Automated tests for `combinations.ts`
+- Better error handling in the agent loop
