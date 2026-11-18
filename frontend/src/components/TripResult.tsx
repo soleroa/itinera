@@ -1,5 +1,5 @@
 import type { AgentResponse, Accommodation, Flight, TripRequest } from '../types';
-import { formatBudget, formatDate } from '../lib/trip-prompt';
+import { formatBudget, formatDate, formatUsd } from '../lib/trip-prompt';
 
 export function TripLoading({ trip }: { trip: TripRequest }) {
   return (
@@ -69,6 +69,7 @@ export function TripResult({
         </Section>
       )}
 
+      {(error || result?.answer) && (
       <article
         className={`whitespace-pre-wrap rounded-3xl p-6 leading-relaxed shadow-sm ring-1 sm:p-8 ${
           error
@@ -78,6 +79,7 @@ export function TripResult({
       >
         {error ?? result?.answer}
       </article>
+      )}
 
       <button
         onClick={onReset}
@@ -87,12 +89,6 @@ export function TripResult({
       </button>
     </div>
   );
-}
-
-const usd = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-
-function formatUsd(amount: number): string {
-  return `USD ${usd.format(amount)}`;
 }
 
 /** Los horarios llegan como "2026-11-28T08:40:00-03:00": se muestran tal cual, en hora local. */
@@ -167,7 +163,7 @@ function Card({
   );
 }
 
-function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
+export function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
   return (
     <Card
       title={flight.aerolinea}
@@ -186,7 +182,7 @@ function FlightCard({ flight, best }: { flight: Flight; best: boolean }) {
   );
 }
 
-function AccommodationCard({
+export function AccommodationCard({
   stay,
   personas,
   best,

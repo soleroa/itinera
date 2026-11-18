@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/agent': 'http://localhost:3001',
+      '/trips': 'http://localhost:3001',
     },
   },
 })

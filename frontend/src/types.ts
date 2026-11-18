@@ -35,3 +35,36 @@ export interface AgentResponse {
   flights: Flight[];
   accommodations: Accommodation[];
 }
+
+export type OptionLevel = 'economica' | 'equilibrada' | 'mejor';
+
+export interface TripOption {
+  nivel: OptionLevel;
+  vuelo: Flight;
+  alojamiento: Accommodation;
+  totalUsd: number;
+  totalArs: number;
+}
+
+export interface Alternative {
+  cambio: string;
+  salida: string;
+  vuelta: string;
+  opcion: TripOption;
+}
+
+export interface Quote {
+  tipo: 'MEP';
+  pesosPorDolar: number;
+  fuente: string;
+}
+
+export interface TripOptionsResponse {
+  estado: 'ok' | 'presupuesto_insuficiente';
+  cotizacion: Quote;
+  opciones: TripOption[];
+  masBarata?: TripOption;
+  faltanteArs?: number;
+  alternativas?: Alternative[];
+  aviso: string;
+}

@@ -6,6 +6,12 @@ export function formatPesos(amount: number): string {
   return `$${formatter.format(amount)}`;
 }
 
+const usdFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+
+export function formatUsd(amount: number): string {
+  return `USD ${usdFormatter.format(amount)}`;
+}
+
 export function formatDate(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString('es-AR', {
