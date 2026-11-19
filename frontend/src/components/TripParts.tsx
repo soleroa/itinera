@@ -2,81 +2,78 @@ import type { ReactNode } from 'react';
 import { useDestinationPhoto } from '../lib/destination-photo';
 import { formatDateRange, formatUsd, plural, splitDateTime } from '../lib/format';
 import type { Accommodation, Flight, TripRequest } from '../types';
-import { ArrowUpRightIcon, BedIcon, PlaneIcon } from './Icons';
 
-/** Full-width destination photo (Wikipedia) with the trip summary on top; gradient if no photo. */
+/** Destination plate: a duotone Wikipedia photo (solid cobalt without one), name set huge on top. */
 export function DestinationBanner({ trip, compact = false }: { trip: TripRequest; compact?: boolean }) {
   const photo = useDestinationPhoto(trip.destination);
   return (
-    <section
-      className={`animate-fade-up relative isolate flex flex-col justify-end overflow-hidden rounded-3xl bg-forest ${
-        compact ? 'min-h-48 sm:min-h-56' : 'min-h-60 sm:min-h-80'
-      }`}
-    >
-      {photo && (
-        <img
-          src={photo}
-          alt=""
-          className="absolute inset-0 -z-10 h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      )}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/75 via-black/25 to-black/5" />
-      <div className="flex flex-col gap-3 p-6 text-white sm:p-8">
-        <h1 className="font-display text-4xl font-semibold leading-none tracking-tight sm:text-6xl">
-          {trip.destination}
-        </h1>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {[
-            `${trip.origin} → ${trip.destination}`,
-            formatDateRange(trip.departure, trip.returnDate),
-            plural(trip.travelers, 'traveler'),
-            trip.maxBudget !== null ? `Up to ${formatUsd(trip.maxBudget)}` : 'No budget set',
-          ].map((chip) => (
-            <span key={chip} className="rounded-full bg-white/15 px-3 py-1 backdrop-blur-sm">
-              {chip}
-            </span>
-          ))}
-        </div>
+    <section className="animate-rise border border-ink">
+      <div
+        className={`duotone relative isolate flex items-end overflow-hidden bg-accent ${
+          compact ? 'min-h-44 sm:min-h-56' : 'min-h-56 sm:min-h-80'
+        }`}
+      >
+        {photo && (
+          <img
+            src={photo}
+            alt=""
+            className="absolute inset-0 -z-10 h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        )}
+        <h1 className="display relative z-10 p-5 text-6xl text-white sm:p-8 sm:text-9xl">{trip.destination}</h1>
+        {photo && (
+          <span className="label absolute right-3 top-3 z-10 bg-black/40 px-2 py-1 text-white/80">Photo: Wikipedia</span>
+        )}
       </div>
-      {photo && (
-        <span className="absolute right-4 top-4 rounded-full bg-black/35 px-2.5 py-1 text-[11px] text-white/85 backdrop-blur-sm">
-          Photo: Wikipedia
-        </span>
-      )}
+      <dl className="grid grid-cols-2 divide-x divide-line border-t border-ink bg-card sm:grid-cols-4">
+        <Meta label="Route" value={`${trip.origin} → ${trip.destination}`} />
+        <Meta label="Dates" value={formatDateRange(trip.departure, trip.returnDate)} />
+        <Meta label="Travelers" value={String(trip.travelers)} />
+        <Meta label="Budget" value={trip.maxBudget !== null ? formatUsd(trip.maxBudget) : 'Open'} />
+      </dl>
     </section>
   );
 }
 
-/** How much of the budget a trip uses. Without a budget, nothing is shown. */
+function Meta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 px-4 py-3">
+      <dt className="label">{label}</dt>
+      <dd className="truncate font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/** How much of the budget a trip uses, as a row of ticks. Without a budget, nothing is shown. */
 export function BudgetMeter({ total, max }: { total: number; max: number | null }) {
   if (max === null) return null;
-  const used = Math.min(100, Math.round((total / max) * 100));
+  const TICKS = 24;
+  const filled = Math.min(TICKS, Math.round((total / max) * TICKS));
   const left = max - total;
-  const tight = used >= 90;
+  const tight = filled >= TICKS - 2;
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <div
-        className="h-1.5 overflow-hidden rounded-full bg-line"
+        className="flex gap-0.5"
         role="meter"
         aria-valuemin={0}
         aria-valuemax={max}
         aria-valuenow={Math.min(total, max)}
         aria-label="Share of your budget used"
       >
-        <div
-          className={`h-full rounded-full ${tight ? 'bg-terracotta' : 'bg-forest'}`}
-          style={{ width: `${used}%` }}
-        />
+        {Array.from({ length: TICKS }, (_, i) => (
+          <span key={i} className={`h-3 flex-1 ${i < filled ? (tight ? 'bg-accent' : 'bg-ink') : 'bg-line'}`} />
+        ))}
       </div>
-      <p className="text-xs text-ink-3">
+      <p className="label normal-case tracking-normal">
         {left >= 0 ? (
           <>
-            <span className="font-semibold text-forest">{formatUsd(left)} under</span> your {formatUsd(max)} budget
+            <b className="text-ok">{formatUsd(left)} under</b> a {formatUsd(max)} budget
           </>
         ) : (
           <>
-            <span className="font-semibold text-terracotta">{formatUsd(-left)} over</span> your {formatUsd(max)} budget
+            <b className="bg-mark px-1 text-black">{formatUsd(-left)} over</b> a {formatUsd(max)} budget
           </>
         )}
       </p>
@@ -94,127 +91,127 @@ export function ExternalLink({ href, children }: { href: string; children: React
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-sm font-medium text-terracotta underline-offset-4 hover:underline"
+      className="inline-flex items-center gap-1 font-mono text-xs font-medium uppercase tracking-widest text-accent underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent"
     >
-      {children}
-      <ArrowUpRightIcon width={14} height={14} />
+      {children} <span aria-hidden="true">↗</span>
     </a>
   );
 }
 
-/** Compact flight line for the option cards. */
+/** One labeled row of a fare table: label column, then the details. */
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[4.5rem_1fr] gap-3 border-t border-line py-3.5 first:border-t-0 first:pt-0">
+      <span className="label pt-0.5">{label}</span>
+      <div className="flex min-w-0 flex-col gap-0.5">{children}</div>
+    </div>
+  );
+}
+
+/** Compact flight rows for the option cards. */
 export function FlightRow({ flight }: { flight: Flight }) {
   const dep = splitDateTime(flight.outboundDeparture);
   const arr = splitDateTime(flight.outboundArrival);
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-paper-2 text-forest">
-        <PlaneIcon width={18} height={18} />
+    <Row label="Flight">
+      <p className="font-medium">
+        {flight.airline} <span className="font-normal text-ink-3">· {stopsLabel(flight.stops)}</span>
+      </p>
+      <p className="font-mono text-sm text-ink-2">
+        {dep.date} {dep.time} → {arr.time}
+      </p>
+      <p className="font-mono text-sm text-ink-3">{formatUsd(flight.totalPrice)} round trip</p>
+      <span className="pt-1">
+        <ExternalLink href={flight.link}>Book flight</ExternalLink>
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="font-medium">
-          {flight.airline} <span className="font-normal text-ink-3">· {stopsLabel(flight.stops)}</span>
-        </p>
-        <p className="text-sm text-ink-2">
-          {dep.date}, {dep.time} → {arr.time}
-        </p>
-        <p className="text-sm text-ink-3">{formatUsd(flight.totalPrice)} round trip, all travelers</p>
-        <span className="pt-1">
-          <ExternalLink href={flight.link}>View flight</ExternalLink>
-        </span>
-      </div>
-    </div>
+    </Row>
   );
 }
 
-/** Compact stay line for the option cards. */
 export function StayRow({ stay }: { stay: Accommodation }) {
-  const details = [stay.type === 'hotel' ? 'Hotel' : 'Rental', stay.category, stay.rating ? `${stay.rating} / 5` : null]
-    .filter(Boolean)
-    .join(' · ');
+  const details = [stay.category, stay.rating ? `${stay.rating}/5` : null].filter(Boolean).join(' · ');
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-paper-2 text-forest">
-        <BedIcon width={18} height={18} />
+    <Row label="Stay">
+      <p className="font-medium">{stay.name}</p>
+      {details && <p className="text-sm text-ink-2">{details}</p>}
+      <p className="font-mono text-sm text-ink-3">
+        {formatUsd(stay.pricePerNight)}/night · {formatUsd(stay.totalPrice)}
+      </p>
+      <span className="pt-1">
+        <ExternalLink href={stay.link}>Book stay</ExternalLink>
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="font-medium">{stay.name}</p>
-        <p className="text-sm text-ink-2">{details}</p>
-        <p className="text-sm text-ink-3">
-          {formatUsd(stay.pricePerNight)} / night · {formatUsd(stay.totalPrice)} total
-        </p>
-        <span className="pt-1">
-          <ExternalLink href={stay.link}>View stay</ExternalLink>
-        </span>
-      </div>
-    </div>
+    </Row>
   );
 }
 
-/** Large boarding-pass style flight card for the chosen trip. */
+/** Boarding pass: perforated stub on the right, barcode, huge times. */
 export function FlightPass({ flight, trip }: { flight: Flight; trip: TripRequest }) {
   const dep = splitDateTime(flight.outboundDeparture);
   const arr = splitDateTime(flight.outboundArrival);
   return (
-    <article className="relative overflow-hidden rounded-3xl border border-line bg-card">
-      <div className="flex items-center justify-between border-b border-dashed border-line px-6 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink-3">
-        <span>Your flight</span>
-        <span>{flight.airline}</span>
-      </div>
-      <div className="grid gap-6 p-6 sm:grid-cols-[1fr_auto] sm:items-center">
-        <div className="flex items-center gap-4">
-          <div className="min-w-0">
-            <p className="font-display text-3xl font-semibold leading-none">{dep.time}</p>
-            <p className="mt-1 truncate text-sm text-ink-2">{trip.origin}</p>
-            <p className="text-xs text-ink-3">{dep.date}</p>
-          </div>
-          <div className="flex min-w-16 flex-1 flex-col items-center gap-1 text-terracotta">
-            <PlaneIcon width={22} height={22} />
-            <span className="h-px w-full border-t border-dashed border-terracotta/60" />
-            <span className="text-xs text-ink-3">{stopsLabel(flight.stops)}</span>
-          </div>
-          <div className="min-w-0 text-right">
-            <p className="font-display text-3xl font-semibold leading-none">{arr.time}</p>
-            <p className="mt-1 truncate text-sm text-ink-2">{trip.destination}</p>
-            <p className="text-xs text-ink-3">{arr.date}</p>
-          </div>
+    <article className="hard-shadow relative grid border border-ink bg-card sm:grid-cols-[1fr_15rem]">
+      <div className="flex flex-col gap-6 p-6">
+        <div className="flex items-center justify-between">
+          <span className="label text-ink">Boarding pass</span>
+          <span className="label">{flight.airline}</span>
         </div>
-        <div className="flex items-center justify-between gap-4 border-t border-dashed border-line pt-4 sm:flex-col sm:items-end sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <div className="sm:text-right">
-            <p className="font-display text-2xl font-semibold">{formatUsd(flight.totalPrice)}</p>
-            <p className="text-xs text-ink-3">round trip, all travelers</p>
+        <div className="flex items-end gap-4">
+          <Time time={dep.time} place={trip.origin} date={dep.date} />
+          <div className="mb-8 flex min-w-10 flex-1 flex-col items-center gap-1">
+            <span className="label normal-case tracking-normal">{stopsLabel(flight.stops)}</span>
+            <span className="h-px w-full bg-ink" />
           </div>
-          <ExternalLink href={flight.link}>View flight</ExternalLink>
+          <Time time={arr.time} place={trip.destination} date={arr.date} align="right" />
+        </div>
+      </div>
+
+      {/* Perforation: dashed rule with a notch at each end. */}
+      <div className="relative flex flex-col justify-between gap-5 border-t border-dashed border-ink p-6 sm:border-l sm:border-t-0">
+        <span aria-hidden="true" className="absolute -left-2.5 -top-2.5 hidden h-5 w-5 rounded-full border border-ink bg-paper sm:block" />
+        <span aria-hidden="true" className="absolute -bottom-2.5 -left-2.5 hidden h-5 w-5 rounded-full border border-ink bg-paper sm:block" />
+        <div>
+          <p className="label">Fare</p>
+          <p className="font-display text-4xl font-semibold tabular-nums">{formatUsd(flight.totalPrice)}</p>
+          <p className="label normal-case tracking-normal">round trip, all travelers</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="barcode" aria-hidden="true" />
+          <ExternalLink href={flight.link}>Book flight</ExternalLink>
         </div>
       </div>
     </article>
   );
 }
 
+function Time({ time, place, date, align = 'left' }: { time: string; place: string; date: string; align?: 'left' | 'right' }) {
+  return (
+    <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}>
+      <p className="display text-6xl tabular-nums sm:text-7xl">{time}</p>
+      <p className="mt-1 truncate font-medium">{place}</p>
+      <p className="font-mono text-xs text-ink-3">{date}</p>
+    </div>
+  );
+}
+
 export function StayCard({ stay, travelers }: { stay: Accommodation; travelers: number }) {
-  const details = [stay.type === 'hotel' ? 'Hotel' : 'Rental', stay.category, stay.rating ? `${stay.rating} / 5` : null]
+  const details = [stay.type === 'hotel' ? 'Hotel' : 'Rental', stay.category, stay.rating ? `${stay.rating}/5` : null]
     .filter(Boolean)
     .join(' · ');
   return (
-    <article className="flex flex-col gap-4 rounded-3xl border border-line bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forest-soft text-forest">
-          <BedIcon />
-        </span>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-3">Your stay</p>
-          <p className="font-display text-2xl font-semibold leading-tight">{stay.name}</p>
-          <p className="text-sm text-ink-2">{details}</p>
-        </div>
+    <article className="grid gap-4 border border-ink bg-card p-6 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div>
+        <p className="label">Your stay</p>
+        <p className="display mt-2 text-4xl sm:text-5xl">{stay.name}</p>
+        <p className="mt-2 text-ink-2">{details}</p>
       </div>
-      <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-        <div className="sm:text-right">
-          <p className="font-display text-2xl font-semibold">{formatUsd(stay.totalPrice)}</p>
-          <p className="text-xs text-ink-3">
-            {formatUsd(stay.pricePerNight)} / night · {plural(travelers, 'traveler')}
+      <div className="flex flex-col gap-3 sm:items-end sm:text-right">
+        <div>
+          <p className="font-display text-4xl font-semibold tabular-nums">{formatUsd(stay.totalPrice)}</p>
+          <p className="label normal-case tracking-normal">
+            {formatUsd(stay.pricePerNight)}/night · {plural(travelers, 'traveler')}
           </p>
         </div>
-        <ExternalLink href={stay.link}>View stay</ExternalLink>
+        <ExternalLink href={stay.link}>Book stay</ExternalLink>
       </div>
     </article>
   );

@@ -1,9 +1,14 @@
 @import "tailwindcss";
 
-/* Editorial travel design system. Colors are CSS variables so light/dark share one set of classes. */
+/*
+ * Itinera design system: a fare sheet. Hairline rules, square corners, hard shadows,
+ * data in monospace, one cobalt accent and a highlighter yellow. Colors are CSS variables
+ * so light and dark share the same classes (and a card can invert itself locally).
+ */
 @theme inline {
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --color-paper: var(--paper);
   --color-paper-2: var(--paper-2);
@@ -12,47 +17,69 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
-  --color-terracotta: var(--accent);
+  --color-accent: var(--accent);
   --color-on-accent: var(--on-accent);
-  --color-forest: var(--forest);
-  --color-forest-soft: var(--forest-soft);
-  --color-amber-soft: var(--amber-soft);
-  --color-amber-ink: var(--amber-ink);
+  --color-ok: var(--ok);
+  --color-mark: var(--mark);
 }
 
 :root {
-  --paper: #f6f0e6;
-  --paper-2: #efe6d6;
-  --card: #fffdf8;
-  --ink: #231d16;
-  --ink-2: #5a5044;
-  --ink-3: #6f6354;
-  --line: #ddd1bd;
-  --accent: #b4461c;
+  --paper: #f4f2ec;
+  --paper-2: #e9e6dd;
+  --card: #fdfcf9;
+  --ink: #101010;
+  --ink-2: #44423d;
+  --ink-3: #6b675f;
+  --line: #cfcbc0;
+  --accent: #2a3cff;
   --on-accent: #ffffff;
-  --forest: #2b4a3b;
-  --forest-soft: #dde8df;
-  --amber-soft: #f6e3c2;
-  --amber-ink: #744407;
+  --ok: #0a7a4a;
+  --mark: #ffd84a;
+  --shadow: 6px 6px 0 var(--ink);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #16120d;
-    --paper-2: #1e1912;
-    --card: #221c15;
-    --ink: #f3ebdd;
-    --ink-2: #c6bba8;
-    --ink-3: #a39783;
-    --line: #3b3226;
-    --accent: #e57d52;
-    --on-accent: #1a0f08;
-    --forest: #9fcdb1;
-    --forest-soft: #233229;
-    --amber-soft: #3a2c13;
-    --amber-ink: #f1c887;
+    --paper: #0d0d0e;
+    --paper-2: #17171a;
+    --card: #131315;
+    --ink: #f3f1ea;
+    --ink-2: #c8c5bc;
+    --ink-3: #9a968c;
+    --line: #2e2e33;
+    --accent: #8d99ff;
+    --on-accent: #0d0d0e;
+    --ok: #62d6a0;
+    --mark: #ffd84a;
+    --shadow: 6px 6px 0 var(--accent);
     color-scheme: dark;
+  }
+}
+
+/* A card that flips light/dark locally, used to feature one option. */
+.inverted {
+  --card: #101010;
+  --ink: #f4f2ec;
+  --ink-2: #cfcbc0;
+  --ink-3: #a19d92;
+  --line: #3a3a3d;
+  --paper-2: #1f1f22;
+  --accent: #9aa5ff;
+  --on-accent: #101010;
+  --ok: #62d6a0;
+}
+@media (prefers-color-scheme: dark) {
+  .inverted {
+    --card: #f4f2ec;
+    --ink: #101010;
+    --ink-2: #44423d;
+    --ink-3: #6b675f;
+    --line: #cfcbc0;
+    --paper-2: #e9e6dd;
+    --accent: #2a3cff;
+    --on-accent: #ffffff;
+    --ok: #0a7a4a;
   }
 }
 
@@ -68,20 +95,17 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Fine paper grain, so the flat background feels printed. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.35;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+::selection {
+  background: var(--mark);
+  color: #101010;
 }
 
-#root {
-  position: relative;
-  z-index: 1;
+/* In the base layer so utilities such as focus-visible:outline-none can override it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
 }
 
 /* Hide the number input spinners; the budget is typed, not stepped. */
@@ -95,23 +119,63 @@ input[type="number"] {
   appearance: textfield;
 }
 
-::selection {
-  background: var(--accent);
-  color: var(--on-accent);
+@layer components {
+/* Small monospace caption used for labels and column heads. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-/* In the base layer so utilities such as focus-visible:outline-none can override it. */
-@layer base {
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
+.hard-shadow {
+  box-shadow: var(--shadow);
 }
 
-@keyframes fade-up {
+/* Condensed, heavy display type. */
+.display {
+  font-family: var(--font-display);
+  font-weight: 750;
+  font-stretch: 86%;
+  letter-spacing: -0.018em;
+  word-spacing: 0.08em;
+  line-height: 0.94;
+}
+
+/* Barcode, drawn with gradients. */
+.barcode {
+  height: 44px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--ink) 0 2px,
+    transparent 2px 5px,
+    var(--ink) 5px 6px,
+    transparent 6px 8px,
+    var(--ink) 8px 11px,
+    transparent 11px 13px
+  );
+}
+
+/* Duotone photo: grayscale image, cobalt multiplied over it. */
+.duotone img {
+  filter: grayscale(1) contrast(1.15) brightness(1.05);
+}
+.duotone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #2a3cff;
+  mix-blend-mode: multiply;
+  opacity: 0.92;
+}
+}
+
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -119,12 +183,21 @@ input[type="number"] {
   }
 }
 
-@keyframes fly {
-  from {
-    left: 0;
-  }
+@keyframes ticker {
   to {
-    left: calc(100% - 28px);
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes march {
+  to {
+    background-position: 24px 0;
   }
 }
 
@@ -137,18 +210,23 @@ input[type="number"] {
   }
 }
 
-@keyframes dash {
-  to {
-    stroke-dashoffset: -24;
-  }
+.animate-rise {
+  animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-.animate-fade-up {
-  animation: fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker 48s linear infinite;
 }
 
-.animate-fly {
-  animation: fly 3.2s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+.blink {
+  animation: blink 1s steps(1) infinite;
+}
+
+.marching {
+  background-image: repeating-linear-gradient(90deg, var(--ink) 0 12px, transparent 12px 24px);
+  animation: march 0.6s linear infinite;
 }
 
 .skeleton {
@@ -158,8 +236,10 @@ input[type="number"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-up,
-  .animate-fly,
+  .animate-rise,
+  .ticker-track,
+  .blink,
+  .marching,
   .skeleton {
     animation: none;
   }

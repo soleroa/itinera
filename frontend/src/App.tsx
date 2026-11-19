@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { CheckIcon, BusIcon, PlaneIcon } from './components/Icons';
 import { ItineraryPlanner } from './components/ItineraryPlanner';
-import { Contours, Eyebrow, Footer, Header } from './components/Layout';
+import { Footer, Header, Ticker } from './components/Layout';
 import { TripLoading } from './components/TripLoading';
 import { TripOptions } from './components/TripOptions';
 import { TripChosen, TripError } from './components/TripResult';
-import { TripWizard } from './components/TripWizard';
+import { TripForm } from './components/TripForm';
 import { track } from './lib/analytics';
 import { fetchTripOptions, TripsError } from './lib/trips-client';
 import type { TripOption, TripOptionsResponse, TripRequest } from './types';
@@ -42,8 +41,9 @@ export default function App() {
   return (
     <div className="flex min-h-svh flex-col">
       <Header onHome={reset} />
+      <Ticker />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-8 sm:px-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-8 pt-8 sm:px-8">
         {phase.name === 'planning' && <Landing onSubmit={handleSubmit} />}
         {phase.name === 'loading' && <TripLoading trip={phase.trip} />}
         {phase.name === 'options' && (
@@ -72,41 +72,40 @@ export default function App() {
 }
 
 const PROOF = [
-  { Icon: PlaneIcon, title: 'Real prices', text: 'Live flights and hotels, not estimates.' },
-  { Icon: CheckIcon, title: 'Checked against your budget', text: 'We add it up, so you never have to.' },
-  { Icon: BusIcon, title: 'Routes, stop by stop', text: 'How to get between places, bus by bus.' },
+  { n: '01', title: 'Real prices', text: 'Live flights and hotels, not estimates.' },
+  { n: '02', title: 'Checked against your budget', text: 'We add it up so you never have to.' },
+  { n: '03', title: 'Routes, stop by stop', text: 'Which bus, how long, where to get off.' },
 ] as const;
 
 function Landing({ onSubmit }: { onSubmit: (trip: TripRequest) => void }) {
   return (
-    <div className="relative grid items-center gap-10 py-6 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-12">
-      <Contours className="absolute -right-24 -top-24 -z-10 hidden w-[620px] opacity-70 lg:block" />
+    <div className="flex flex-col gap-12 pb-10 pt-4 lg:gap-16 lg:pt-8">
+      <h1 className="display animate-rise max-w-5xl text-[clamp(3.5rem,10.5vw,9.5rem)]">
+        What does the trip <span className="bg-mark px-2 text-black [box-decoration-break:clone]">actually</span> cost?
+      </h1>
 
-      <section className="animate-fade-up flex flex-col gap-7">
-        <Eyebrow>Trip planning, with the numbers</Eyebrow>
-        <h1 className="font-display text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
-          Know what the trip costs <em className="text-terracotta">before</em> you book it.
-        </h1>
-        <p className="max-w-lg text-lg leading-relaxed text-ink-2">
-          Tell us where, when and how much. Itinera finds real flights and hotels that fit your budget,
-          then plans each day with the way to get around.
-        </p>
-        <ul className="flex flex-col gap-4 pt-2">
-          {PROOF.map(({ Icon, title, text }) => (
-            <li key={title} className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-forest-soft text-forest">
-                <Icon width={18} height={18} />
-              </span>
-              <p className="text-ink-2">
-                <span className="font-semibold text-ink">{title}.</span> {text}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <div className="grid gap-12 lg:grid-cols-[1fr_30rem] lg:gap-16">
+        <section className="animate-rise flex flex-col gap-10" style={{ animationDelay: '100ms' }}>
+          <p className="max-w-lg text-xl leading-snug text-ink-2">
+            Tell us where, when and how much. Itinera finds real flights and hotels that fit your budget, then plans
+            each day with the way to get around.
+          </p>
+          <dl>
+            {PROOF.map(({ n, title, text }) => (
+              <div key={n} className="grid grid-cols-[3.5rem_1fr] gap-4 border-t border-ink py-4 last:border-b">
+                <dt className="font-mono text-sm text-accent">{n}</dt>
+                <dd>
+                  <b className="font-display text-xl font-semibold tracking-tight">{title}.</b>{' '}
+                  <span className="text-ink-2">{text}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-      <div className="animate-fade-up" style={{ animationDelay: '120ms' }}>
-        <TripWizard onSubmit={onSubmit} />
+        <div className="animate-rise" style={{ animationDelay: '180ms' }}>
+          <TripForm onSubmit={onSubmit} />
+        </div>
       </div>
     </div>
   );

@@ -30,11 +30,19 @@ events `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` and
 
 ## Design
 
-Editorial travel style: Fraunces (serif) for headings and prices, Inter for text, a warm
-paper background with terracotta and forest-green accents, and a matching dark mode.
-Colors are CSS variables in `src/index.css`, so light and dark share the same classes.
-The destination banner uses a photo from Wikipedia (free, no key) and falls back to a
-gradient when there is none. Animations respect `prefers-reduced-motion`.
+The concept is a fare sheet: Itinera is about *the number*, so the interface looks like a
+printed travel document. Hairline rules, square corners and hard offset shadows instead of soft
+rounded cards; prices, times and labels in monospace like a receipt or a departure board; huge
+condensed headlines (Bricolage Grotesque) with the key word highlighted; one cobalt accent and a
+highlighter yellow used only for warnings and emphasis. The search is a single numbered sheet,
+the chosen trip is a receipt with dotted leaders next to a perforated boarding pass with a
+barcode, and each day of the itinerary gets a giant numeral.
+
+Colors are CSS variables in `src/index.css`, so light and dark share the same classes and a card
+can invert itself locally (the featured option). Custom classes live in `@layer components` so
+Tailwind utilities can override them. Destination photos come from Wikipedia (free, no key) and
+are shown in a cobalt duotone, or as solid cobalt when there is none. Animations respect
+`prefers-reduced-motion`.
 
 ## Structure
 
@@ -42,13 +50,13 @@ gradient when there is none. Animations respect `prefers-reduced-motion`.
 src/
 ├── App.tsx                    → screen phase (planning / loading / options / chosen / error) and the landing
 ├── components/
-│   ├── Layout.tsx             → header, footer, eyebrow label and decorative contour lines
-│   ├── TripWizard.tsx         → step-by-step guided form
-│   ├── TripLoading.tsx        → animated plane and status messages while searching
-│   ├── TripOptions.tsx        → three option cards, budget meters and cheaper alternatives
-│   ├── TripResult.tsx         → chosen trip summary and the error state
-│   ├── TripParts.tsx          → destination banner, budget meter, boarding-pass flight and stay cards
-│   ├── ItineraryPlanner.tsx   → editable place list and the day-by-day timeline
+│   ├── Layout.tsx             → header, departure-board ticker, footer and section label
+│   ├── TripForm.tsx           → the search as one numbered sheet
+│   ├── TripLoading.tsx        → marching rule and status messages while searching
+│   ├── TripOptions.tsx        → three fare cards, tick budget meters and cheaper alternatives
+│   ├── TripResult.tsx         → chosen trip receipt and the error state
+│   ├── TripParts.tsx          → duotone destination plate, budget meter, boarding-pass flight and stay cards
+│   ├── ItineraryPlanner.tsx   → editable place list and the day-by-day timeline with giant day numerals
 │   └── Icons.tsx              → inline SVG icons
 ├── lib/
 │   ├── analytics.ts           → PostHog init and track() helper
