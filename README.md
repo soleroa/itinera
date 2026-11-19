@@ -20,6 +20,8 @@ much and suggests cheaper variants.
   into days, and ordered starting from your hotel. Each leg shows how to get there by
   public transport (Google Routes), falling back to walking or driving when there is
   no transit data. A place far from the rest is accepted but flagged with a warning.
+- The destination and origin fields are search boxes with city suggestions from Google
+  Places, like a flight search.
 - Searches round-trip flights (Google Flights) and accommodation (Google Hotels,
   via SerpApi) with real prices.
 - Verifies in code that flight + accommodation fit your USD budget, and offers up to
@@ -144,7 +146,8 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 - **Transit coverage.** Google has no public transport data in some cities; those
   legs fall back to walking or driving and are labelled as such.
 - **Airports:** the most searched Argentine cities are resolved by hand; anything
-  else relies on fli-js's airport search.
+  else relies on fli-js's airport search. The suggestions box passes only the city name
+  on, so a homonymous city abroad (e.g. Córdoba, Spain) can resolve to the Argentine one.
 
 ## Roadmap
 

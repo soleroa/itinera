@@ -50,7 +50,7 @@ as bus stops, so suggestions now come straight from Google's ranking.)
 | `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes`. Places often ranks a different place first (e.g. "Cerro Catedral, Bariloche" returned Cerro Leon), so it asks for 5 results and `pickBestMatch` chooses the one whose name matches |
 | `place-suggester.service.ts` | Suggests a destination's top-rated tourist attractions from Google Places |
 | `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK`, then `DRIVE`; legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented |
-| `itinerary.controller.ts` | `POST /trips/places/suggest`, `POST /trips/itinerary` |
+| `itinerary.controller.ts` | `GET /trips/places/autocomplete?q=` (city suggestions for the destination and origin fields, biased toward Argentina but not restricted to it), `POST /trips/places/suggest`, `POST /trips/itinerary` |
 
 ### The agent's three modules
 

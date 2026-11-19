@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { TripRequest } from '../types';
 import { MinusIcon, PlusIcon } from './Icons';
+import { PlaceSearch } from './PlaceSearch';
 
 type Draft = {
   destination: string;
@@ -66,12 +67,11 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
       </div>
 
       <Field n="01" label="Where to" htmlFor="destination">
-        <input
+        <PlaceSearch
           id="destination"
-          autoFocus
           value={draft.destination}
-          onChange={(e) => update('destination', e.target.value)}
-          placeholder="Bariloche"
+          onChange={(v) => update('destination', v)}
+          placeholder="Search a city, e.g. Bariloche"
           className={input}
         />
         <p className="flex flex-wrap gap-x-3 gap-y-1 pt-2 font-mono text-xs text-ink-3">
@@ -89,11 +89,11 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
       </Field>
 
       <Field n="02" label="Flying from" htmlFor="origin">
-        <input
+        <PlaceSearch
           id="origin"
           value={draft.origin}
-          onChange={(e) => update('origin', e.target.value)}
-          placeholder="Buenos Aires"
+          onChange={(v) => update('origin', v)}
+          placeholder="Search a city, e.g. Buenos Aires"
           className={input}
         />
       </Field>

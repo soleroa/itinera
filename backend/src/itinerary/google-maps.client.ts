@@ -9,6 +9,14 @@ export interface Place extends LatLng {
   types: string[];
 }
 
+export interface CitySuggestion {
+  id: string;
+  /** E.g. "San Carlos de Bariloche". */
+  name: string;
+  /** E.g. "Río Negro, Argentina". */
+  detail: string;
+}
+
 export type TravelMode = 'TRANSIT' | 'WALK' | 'DRIVE';
 
 export interface RouteStep {
@@ -39,6 +47,19 @@ interface PlacesResponse {
   }>;
 }
 
+interface AutocompleteResponse {
+  suggestions?: Array<{
+    placePrediction?: {
+      placeId: string;
+      text?: { text: string };
+      structuredFormat?: {
+        mainText?: { text: string };
+        secondaryText?: { text: string };
+      };
+    };
+  }>;
+}
+
 interface RoutesResponse {
   routes?: Array<{
     duration?: string;
@@ -65,6 +86,7 @@ interface RoutesResponse {
 }
 
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
+const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
 const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
 /** Google Places (New) and Routes APIs: https://developers.google.com/maps */
@@ -115,6 +137,40 @@ export class GoogleMapsClient {
       !options.strict,
     );
     return place ? toPlace(place, query) : null;
+  }
+
+  /** City suggestions for a partially typed destination or origin. */
+  async autocompleteCities(input: string): Promise<CitySuggestion[]> {
+    const response = await fetch(AUTOCOMPLETE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': this.apiKey(),
+      },
+      body: JSON.stringify({
+        input,
+        includedPrimaryTypes: ['(cities)'],
+        languageCode: 'en',
+        // A bias, not a restriction: Argentine matches rank first, the rest of the world still appears.
+        locationBias: {
+          rectangle: {
+            low: { latitude: -55.1, longitude: -73.6 },
+            high: { latitude: -21.7, longitude: -53.6 },
+          },
+        },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Google Places responded ${response.status}`);
+    }
+    return (((await response.json()) as AutocompleteResponse).suggestions ?? [])
+      .flatMap((s) => (s.placePrediction ? [s.placePrediction] : []))
+      .map((p) => ({
+        id: p.placeId,
+        name: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
+        detail: p.structuredFormat?.secondaryText?.text ?? '',
+      }))
+      .filter((c) => c.name !== '');
   }
 
   /** The destination's best-rated tourist attractions, as ranked by Google Places. */

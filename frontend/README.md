@@ -52,6 +52,7 @@ src/
 ├── components/
 │   ├── Layout.tsx             → header, departure-board ticker, footer and section label
 │   ├── TripForm.tsx           → the search as one numbered sheet
+│   ├── PlaceSearch.tsx        → city search box with Google Places suggestions (combobox, keyboard support)
 │   ├── TripLoading.tsx        → marching rule and status messages while searching
 │   ├── TripOptions.tsx        → three fare cards, tick budget meters and cheaper alternatives
 │   ├── TripResult.tsx         → chosen trip receipt and the error state
@@ -62,6 +63,7 @@ src/
 │   ├── analytics.ts           → PostHog init and track() helper
 │   ├── trips-client.ts        → fetch to POST /trips/options
 │   ├── itinerary-client.ts    → fetch to /trips/places/suggest and /trips/itinerary
+│   ├── places-client.ts       → fetch to /trips/places/autocomplete
 │   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)
 │   ├── destination-photo.ts   → destination photo from Wikipedia
 │   └── format.ts              → USD, date and duration formatting
