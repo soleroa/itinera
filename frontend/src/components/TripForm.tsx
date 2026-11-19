@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { TripRequest } from '../types';
 import { MinusIcon, PlusIcon } from './Icons';
+import type { CitySuggestion } from '../lib/places-client';
 import { PlaceSearch } from './PlaceSearch';
 
 type Draft = {
@@ -29,6 +30,12 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
     travelers: 2,
     maxBudget: '',
   });
+  // Whether the destination / origin picked from the suggestions is a whole country or region.
+  const [kinds, setKinds] = useState<{ destination: CitySuggestion['kind'] | null; origin: CitySuggestion['kind'] | null }>({
+    destination: null,
+    origin: null,
+  });
+  const isBroad = (kind: CitySuggestion['kind'] | null) => kind === 'country' || kind === 'region';
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -36,8 +43,12 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
   const budgetOk = draft.maxBudget === '' || Number(draft.maxBudget) > 0;
   const missing = !draft.destination.trim()
     ? 'Add a destination'
-    : !draft.origin.trim()
-      ? 'Add where you fly from'
+    : isBroad(kinds.destination)
+      ? `Pick a city in ${draft.destination}`
+      : !draft.origin.trim()
+        ? 'Add where you fly from'
+        : isBroad(kinds.origin)
+          ? `Pick the city you fly from in ${draft.origin}`
       : draft.departure === '' || draft.returnDate === ''
         ? 'Pick your dates'
         : !datesOk
@@ -71,6 +82,7 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
           id="destination"
           value={draft.destination}
           onChange={(v) => update('destination', v)}
+          onKind={(kind) => setKinds((k) => ({ ...k, destination: kind }))}
           placeholder="Search a city, e.g. Bariloche"
           className={input}
         />
@@ -93,6 +105,7 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
           id="origin"
           value={draft.origin}
           onChange={(v) => update('origin', v)}
+          onKind={(kind) => setKinds((k) => ({ ...k, origin: kind }))}
           placeholder="Search a city, e.g. Buenos Aires"
           className={input}
         />

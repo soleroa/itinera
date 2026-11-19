@@ -20,8 +20,9 @@ much and suggests cheaper variants.
   into days, and ordered starting from your hotel. Each leg shows how to get there by
   public transport (Google Routes), falling back to walking or driving when there is
   no transit data. A place far from the rest is accepted but flagged with a warning.
-- The destination and origin fields are search boxes with city suggestions from Google
-  Places, like a flight search.
+- The destination and origin fields are search boxes with suggestions from Google Places,
+  like a flight search. Typing a country (e.g. "Italia") is accepted, but since flights and
+  daily routes need a city, it offers popular cities (Rome, Florence...) to pick from.
 - Searches round-trip flights (Google Flights) and accommodation (Google Hotels,
   via SerpApi) with real prices.
 - Verifies in code that flight + accommodation fit your USD budget, and offers up to

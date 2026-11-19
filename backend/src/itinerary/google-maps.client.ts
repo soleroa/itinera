@@ -13,8 +13,10 @@ export interface CitySuggestion {
   id: string;
   /** E.g. "San Carlos de Bariloche". */
   name: string;
-  /** E.g. "Río Negro, Argentina". */
+  /** E.g. "Río Negro, Argentina". Empty for a whole country. */
   detail: string;
+  /** A country or region is too broad to search flights or plan days; a city is not. */
+  kind: 'city' | 'region' | 'country';
 }
 
 export type TravelMode = 'TRANSIT' | 'WALK' | 'DRIVE';
@@ -52,6 +54,7 @@ interface AutocompleteResponse {
     placePrediction?: {
       placeId: string;
       text?: { text: string };
+      types?: string[];
       structuredFormat?: {
         mainText?: { text: string };
         secondaryText?: { text: string };
@@ -139,7 +142,7 @@ export class GoogleMapsClient {
     return place ? toPlace(place, query) : null;
   }
 
-  /** City suggestions for a partially typed destination or origin. */
+  /** Place suggestions (cities, regions and countries) for a partially typed destination or origin. */
   async autocompleteCities(input: string): Promise<CitySuggestion[]> {
     const response = await fetch(AUTOCOMPLETE_URL, {
       method: 'POST',
@@ -149,7 +152,12 @@ export class GoogleMapsClient {
       },
       body: JSON.stringify({
         input,
-        includedPrimaryTypes: ['(cities)'],
+        includedPrimaryTypes: [
+          'locality',
+          'country',
+          'administrative_area_level_1',
+          'administrative_area_level_2',
+        ],
         languageCode: 'en',
         // A bias, not a restriction: Argentine matches rank first, the rest of the world still appears.
         locationBias: {
@@ -169,6 +177,7 @@ export class GoogleMapsClient {
         id: p.placeId,
         name: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
         detail: p.structuredFormat?.secondaryText?.text ?? '',
+        kind: kindOf(p.types ?? []),
       }))
       .filter((c) => c.name !== '');
   }
@@ -251,6 +260,12 @@ export class GoogleMapsClient {
 /** Google durations look like "1234s". */
 function parseSeconds(duration: string | undefined): number {
   return duration ? Number.parseInt(duration, 10) || 0 : 0;
+}
+
+function kindOf(types: string[]): CitySuggestion['kind'] {
+  if (types.includes('country')) return 'country';
+  if (types.includes('locality')) return 'city';
+  return 'region';
 }
 
 type ApiPlace = NonNullable<PlacesResponse['places']>[number];

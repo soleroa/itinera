@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { popularCities } from '../lib/popular-cities';
 import { searchCities } from '../lib/places-client';
 import type { CitySuggestion } from '../lib/places-client';
 import { PinIcon } from './Icons';
@@ -18,18 +19,22 @@ export function PlaceSearch({
   onChange,
   placeholder,
   className,
+  onKind,
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   className: string;
+  /** Tells the form whether the chosen place is a whole country/region (too broad), or null once edited. */
+  onKind?: (kind: CitySuggestion['kind'] | null) => void;
 }) {
   const listId = useId();
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
+  const [broad, setBroad] = useState<CitySuggestion | null>(null);
   // The last value chosen from the list: no need to search again for it.
   const picked = useRef<string | null>(null);
 
@@ -62,6 +67,8 @@ export function PlaceSearch({
     onChange(city.name);
     setOpen(false);
     setSuggestions([]);
+    setBroad(city.kind === 'city' ? null : city);
+    onKind?.(city.kind);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -91,6 +98,8 @@ export function PlaceSearch({
           picked.current = null;
           onChange(e.target.value);
           setOpen(true);
+          setBroad(null);
+          onKind?.(null);
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
@@ -109,6 +118,7 @@ export function PlaceSearch({
           searching…
         </span>
       )}
+      {broad && <BroadHint place={broad} onPick={(name) => choose({ id: name, name, detail: '', kind: 'city' })} />}
       {showList && (
         <ul
           id={listId}
@@ -132,17 +142,53 @@ export function PlaceSearch({
               }`}
             >
               <PinIcon width={16} height={16} className={i === active ? 'text-paper' : 'text-accent'} />
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block truncate font-display text-xl font-semibold leading-tight tracking-tight">
                   {city.name}
                 </span>
                 <span className={`block truncate font-mono text-xs ${i === active ? 'text-paper/70' : 'text-ink-3'}`}>
-                  {city.detail}
+                  {city.detail || (city.kind === 'country' ? 'Whole country' : '')}
                 </span>
               </span>
+              {city.kind !== 'city' && (
+                <span
+                  className={`border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
+                    i === active ? 'border-paper/50 text-paper' : 'border-ink-3 text-ink-3'
+                  }`}
+                >
+                  {city.kind}
+                </span>
+              )}
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/** Shown after picking a country or region: those are too broad, so nudge toward a real city. */
+function BroadHint({ place, onPick }: { place: CitySuggestion; onPick: (city: string) => void }) {
+  const cities = popularCities(place.name);
+  return (
+    <div className="mt-3 border-l-2 border-accent bg-paper-2 px-3 py-2 text-sm">
+      <p className="text-ink-2">
+        <b className="text-ink">{place.name}</b> is a whole {place.kind}. Pick a city so we can search flights and plan
+        the days{cities.length > 0 ? ':' : '.'}
+      </p>
+      {cities.length > 0 && (
+        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs">
+          {cities.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onPick(c)}
+              className="font-medium text-accent underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent"
+            >
+              {c}
+            </button>
+          ))}
+        </p>
       )}
     </div>
   );

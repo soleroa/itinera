@@ -52,7 +52,7 @@ src/
 ├── components/
 │   ├── Layout.tsx             → header, departure-board ticker, footer and section label
 │   ├── TripForm.tsx           → the search as one numbered sheet
-│   ├── PlaceSearch.tsx        → city search box with Google Places suggestions (combobox, keyboard support)
+│   ├── PlaceSearch.tsx        → search box with Google Places suggestions (combobox, keyboard support); a country or region offers popular cities instead
 │   ├── TripLoading.tsx        → marching rule and status messages while searching
 │   ├── TripOptions.tsx        → three fare cards, tick budget meters and cheaper alternatives
 │   ├── TripResult.tsx         → chosen trip receipt and the error state
@@ -64,6 +64,7 @@ src/
 │   ├── trips-client.ts        → fetch to POST /trips/options
 │   ├── itinerary-client.ts    → fetch to /trips/places/suggest and /trips/itinerary
 │   ├── places-client.ts       → fetch to /trips/places/autocomplete
+│   ├── popular-cities.ts      → short fixed list of well-known cities per country/region
 │   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)
 │   ├── destination-photo.ts   → destination photo from Wikipedia
 │   └── format.ts              → USD, date and duration formatting
