@@ -1,9 +1,9 @@
 # Itinera — frontend
 
-Itinera's UI: a guided form, one question per screen (destination, origin, dates,
-travelers and budget), and a screen with the flight + accommodation combinations
-that fit the budget (cheapest, balanced and best), or the alternatives if it
-falls short. It is not a chat. React + Vite + Tailwind, with no routing or extra
+Itinera's UI: a one-page search sheet (destination, origin, dates, travelers and budget),
+a screen with the flight + accommodation combinations that fit the budget (cheapest,
+balanced and best) or the alternatives if it falls short, and then the day-by-day itinerary
+of the one you pick. It is not a chat. React + Vite + Tailwind, with no routing or extra
 state management — it is a single screen.
 
 ## Running it
@@ -30,13 +30,13 @@ events `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` and
 
 ## Design
 
-The concept is a fare sheet: Itinera is about *the number*, so the interface looks like a
-printed travel document. Hairline rules, square corners and hard offset shadows instead of soft
+The concept is a printed timetable: an itinerary is a schedule, so the interface looks like a
+travel document (the budget is a constraint on the plan, not the headline). Hairline rules, square corners and hard offset shadows instead of soft
 rounded cards; prices, times and labels in monospace like a receipt or a departure board; huge
 condensed headlines (Bricolage Grotesque) with the key word highlighted; one cobalt accent and a
 highlighter yellow used only for warnings and emphasis. The search is a single numbered sheet,
-the chosen trip is a receipt with dotted leaders next to a perforated boarding pass with a
-barcode, and each day of the itinerary gets a giant numeral.
+the itinerary leads the page with a giant numeral per day, and the chosen flight and stay
+follow as a receipt with dotted leaders next to a perforated boarding pass with a barcode.
 
 Colors are CSS variables in `src/index.css`, so light and dark share the same classes and a card
 can invert itself locally (the featured option). Custom classes live in `@layer components` so

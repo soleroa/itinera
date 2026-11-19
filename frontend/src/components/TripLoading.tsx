@@ -3,10 +3,10 @@ import type { TripRequest } from '../types';
 import { Eyebrow } from './Layout';
 
 const MESSAGES = [
-  'Searching real flights',
-  'Comparing hotels',
-  'Adding it all up',
-  'Checking it against your budget',
+  'Finding real flights',
+  'Finding a place to stay',
+  'Fitting it to your budget',
+  'Lining up your options',
 ];
 
 export function TripLoading({ trip }: { trip: TripRequest }) {
@@ -19,7 +19,7 @@ export function TripLoading({ trip }: { trip: TripRequest }) {
 
   return (
     <div className="animate-rise flex flex-col gap-10 py-16 sm:py-24">
-      <Eyebrow>Pricing</Eyebrow>
+      <Eyebrow>Planning</Eyebrow>
       <h2 className="display max-w-4xl text-6xl sm:text-8xl">
         {trip.origin} <span className="text-accent">→</span> {trip.destination}
       </h2>

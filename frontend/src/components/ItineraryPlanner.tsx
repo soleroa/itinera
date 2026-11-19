@@ -70,7 +70,7 @@ export function ItineraryPlanner({ trip, option }: { trip: TripRequest; option: 
   return (
     <section className="flex flex-col gap-8 border-t-2 border-ink pt-10">
       <div className="flex flex-col gap-4">
-        <Eyebrow>Day by day</Eyebrow>
+        <Eyebrow>Step 2 of 2 · Your days</Eyebrow>
         <h2 className="display max-w-3xl text-5xl sm:text-7xl">
           {itinerary ? 'Your itinerary.' : 'What do you want to see?'}
         </h2>

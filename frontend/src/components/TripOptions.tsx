@@ -42,10 +42,10 @@ export function TripOptions({
         </section>
       ) : (
         <section className="animate-rise flex flex-col gap-4">
-          <Eyebrow>Within your budget</Eyebrow>
-          <h2 className="display max-w-5xl text-5xl sm:text-7xl">Pick how you want to travel.</h2>
+          <Eyebrow>Step 1 of 2 · Getting there</Eyebrow>
+          <h2 className="display max-w-5xl text-5xl sm:text-7xl">First, pick your flight and stay.</h2>
           <p className="max-w-xl text-ink-2">
-            Each total covers flight + stay at real prices, already checked against your budget.
+            Real prices, already checked against your budget. Next, we plan your days.
           </p>
         </section>
       )}
@@ -104,7 +104,7 @@ export function TripOptions({
           onClick={onReset}
           className="border border-ink px-5 py-2.5 font-mono text-xs font-medium uppercase tracking-widest transition hover:bg-ink hover:text-paper"
         >
-          ← New search
+          ← New itinerary
         </button>
       </div>
     </div>

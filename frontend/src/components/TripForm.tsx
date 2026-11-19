@@ -61,8 +61,8 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
   return (
     <form onSubmit={handleSubmit} className="hard-shadow border border-ink bg-card">
       <div className="flex items-center justify-between border-b border-ink bg-ink px-5 py-2.5 text-paper">
-        <span className="label text-paper">New fare search</span>
-        <span className="label text-paper/70">All fields below</span>
+        <span className="label text-paper">New itinerary</span>
+        <span className="label text-paper/70">6 quick questions</span>
       </div>
 
       <Field n="01" label="Where to" htmlFor="destination">
@@ -135,7 +135,7 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
             </Stepper>
           </div>
         </Field>
-        <Field n="06" label="Budget, flight + stay (USD)" htmlFor="max-budget">
+        <Field n="06" label="Budget for flight + stay (USD)" htmlFor="max-budget">
           <div className="flex items-baseline gap-1">
             <span className="font-display text-3xl font-semibold text-ink-3">$</span>
             <input
@@ -158,11 +158,11 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
           disabled={missing !== null}
           className="group flex w-full items-center justify-between bg-ink px-5 py-4 text-left font-display text-2xl font-semibold tracking-tight text-paper transition hover:bg-accent hover:text-on-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-ink disabled:hover:text-paper"
         >
-          Price this trip
+          Plan my trip
           <span aria-hidden="true" className="font-mono text-xl transition group-hover:translate-x-1">→</span>
         </button>
         <p className="label min-h-4 normal-case tracking-normal" role="status">
-          {missing ?? 'Budget is optional. Without it we show every option.'}
+          {missing ?? 'Budget is optional. Next you pick flight + stay, then we plan the days.'}
         </p>
       </div>
     </form>

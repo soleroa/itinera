@@ -1,12 +1,13 @@
 # Itinera
 
-Trip planner that searches **real flights and accommodation** and builds
-combinations that **fit your budget in USD**.
+Itinerary planner. Tell it where you are going, when and with what budget, and it plans
+the whole trip **day by day**: the places to see, in a sensible order, and exactly how to
+get between them. It also finds **real flights and a hotel** that fit your budget in USD.
 
-Enter an origin, destination, dates, number of travelers and a budget, and Itinera
-returns up to three flight + accommodation combinations (cheapest, balanced and
-best). If the budget falls short, it tells you by how much and suggests cheaper
-variants.
+Enter an origin, destination, dates, number of travelers and a budget. Itinera returns up
+to three flight + accommodation combinations (cheapest, balanced and best); you pick one,
+and it builds the itinerary from your hotel. If the budget falls short, it tells you by how
+much and suggests cheaper variants.
 
 > **Status:** work in progress. Budget-aware combination search and the
 > day-by-day itinerary are implemented. The itinerary has been run against the live
@@ -14,20 +15,18 @@ variants.
 
 ## What it does today
 
+- Builds a **day-by-day itinerary**: places are suggested from Google Places'
+  top-rated attractions for the destination (or typed by you), grouped by proximity
+  into days, and ordered starting from your hotel. Each leg shows how to get there by
+  public transport (Google Routes), falling back to walking or driving when there is
+  no transit data. A place far from the rest is accepted but flagged with a warning.
 - Searches round-trip flights (Google Flights) and accommodation (Google Hotels,
   via SerpApi) with real prices.
-- Verifies in code that flight + accommodation fit your USD budget.
-- Offers up to three combinations: **cheapest**, **balanced** (best
-  quality-to-price ratio) and **best** (highest quality within the budget).
+- Verifies in code that flight + accommodation fit your USD budget, and offers up to
+  three combinations: **cheapest**, **balanced** (best quality-to-price ratio) and
+  **best** (highest quality within the budget).
 - If the budget falls short: reports the shortfall and tries alternatives (one or
   two fewer nights, or traveling one week later), capped at 3 extra searches.
-- Builds a **day-by-day itinerary** for the option you choose: places are suggested
-  from Google Places' top-rated attractions for the destination (or typed by you),
-  grouped by
-  proximity into days, and ordered starting from your hotel. Each leg shows how to
-  get there by public transport (Google Routes), falling back to walking or
-  driving when there is no transit data. A place far from the rest is accepted but
-  flagged with a warning.
 - Always states that the budget covers **flight and accommodation only**: food,
   tickets and local transport are not included.
 

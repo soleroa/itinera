@@ -72,23 +72,24 @@ export default function App() {
 }
 
 const PROOF = [
-  { n: '01', title: 'Real prices', text: 'Live flights and hotels, not estimates.' },
-  { n: '02', title: 'Checked against your budget', text: 'We add it up so you never have to.' },
-  { n: '03', title: 'Routes, stop by stop', text: 'Which bus, how long, where to get off.' },
+  { n: '01', title: 'A plan for every day', text: 'Places grouped by proximity, in an order that makes sense.' },
+  { n: '02', title: 'Routes, stop by stop', text: 'Which bus, how long it takes, where to get off.' },
+  { n: '03', title: 'Flights and a stay that fit', text: 'Real prices, checked against your budget.' },
 ] as const;
 
 function Landing({ onSubmit }: { onSubmit: (trip: TripRequest) => void }) {
   return (
     <div className="flex flex-col gap-12 pb-10 pt-4 lg:gap-16 lg:pt-8">
       <h1 className="display animate-rise max-w-5xl text-[clamp(3.5rem,10.5vw,9.5rem)]">
-        What does the trip <span className="bg-mark px-2 text-black [box-decoration-break:clone]">actually</span> cost?
+        Your trip, planned{' '}
+        <span className="bg-mark px-2 text-black [box-decoration-break:clone]">day by day.</span>
       </h1>
 
       <div className="grid gap-12 lg:grid-cols-[1fr_30rem] lg:gap-16">
         <section className="animate-rise flex flex-col gap-10" style={{ animationDelay: '100ms' }}>
           <p className="max-w-lg text-xl leading-snug text-ink-2">
-            Tell us where, when and how much. Itinera finds real flights and hotels that fit your budget, then plans
-            each day with the way to get around.
+            Tell us where, when and your budget. Itinera finds flights and a hotel that fit, then lays out every day:
+            what to see, in what order, and exactly how to get between stops.
           </p>
           <dl>
             {PROOF.map(({ n, title, text }) => (
