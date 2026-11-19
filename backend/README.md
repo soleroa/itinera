@@ -45,7 +45,7 @@ computed by code.
 | File | Responsibility |
 |---|---|
 | `geo.ts` | Pure functions: haversine distance, `clusterIntoDays` (deterministic k-means with a per-day capacity) and `nearestNeighborOrder` |
-| `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes` |
+| `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes`. Places often ranks a different place first (e.g. "Cerro Catedral, Bariloche" returned Cerro Leon), so it asks for 5 results and `pickBestMatch` chooses the one whose name matches |
 | `place-suggester.service.ts` | Asks the LLM for attractions and keeps only those Google Places can resolve |
 | `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK`, then `DRIVE`; legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented |
 | `itinerary.controller.ts` | `POST /trips/places/suggest`, `POST /trips/itinerary` |
@@ -241,8 +241,9 @@ curl -X POST http://localhost:3001/agent \
 **Done:**
 - Day-by-day itinerary (`POST /trips/itinerary`, `POST /trips/places/suggest`):
   places grouped by proximity, ordered from the hotel, each leg timed with Google
-  Routes. Logic is unit-tested with a fake Google client; **not yet tried against
-  the live APIs**
+  Routes. Logic is unit-tested with a fake Google client and was run once against the
+  live Places and Routes APIs (Bariloche); the LLM place suggestions have not been
+  tried live
 - Unit tests for the combination logic (`npm test`, Node's built-in runner)
 - Deterministic planner (`POST /trips/options`): flight + accommodation
   combinations within a USD budget, cheaper alternatives and a notice of what the
@@ -256,6 +257,6 @@ curl -X POST http://localhost:3001/agent \
 - ReAct agent with `OllamaProvider`, and a hardcoded weather tool (no real API)
 
 **Pending:**
-- Try the itinerary against the live Google APIs in several cities
+- Try the itinerary against the live Google APIs in more cities
 - Caching and per-user limits to control API costs
 - Better error handling in the agent loop

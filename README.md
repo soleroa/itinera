@@ -9,9 +9,8 @@ best). If the budget falls short, it tells you by how much and suggests cheaper
 variants.
 
 > **Status:** work in progress. Budget-aware combination search and the
-> day-by-day itinerary are implemented; the itinerary needs a Google Maps key and
-> has not been tried against the live Google APIs yet (see the
-> [Roadmap](#roadmap)).
+> day-by-day itinerary are implemented. The itinerary has been run against the live
+> Google APIs for Bariloche only (see the [Roadmap](#roadmap)).
 
 ## What it does today
 
@@ -151,7 +150,8 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 
 - [x] Day-by-day itinerary with proximity clustering and nearest-neighbor ordering in code.
 - [x] Local transport with Google Routes (`TRANSIT`), falling back to walking or driving.
-- [ ] Verify the itinerary against the live Google APIs in several cities.
+- [ ] Verify the itinerary against the live Google APIs in more cities, including ones
+  with poor public transport coverage, and the LLM place suggestions with Ollama.
 - [ ] Caching of Places/Routes results and per-user limits to control costs.
 
 ## License
