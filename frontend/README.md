@@ -28,23 +28,36 @@ or self-hosting) in `.env`. Without a key nothing is sent. Pageviews and the
 events `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` and
 `trip_option_chosen` are captured; destination, origin and dates are not sent.
 
+## Design
+
+Editorial travel style: Fraunces (serif) for headings and prices, Inter for text, a warm
+paper background with terracotta and forest-green accents, and a matching dark mode.
+Colors are CSS variables in `src/index.css`, so light and dark share the same classes.
+The destination banner uses a photo from Wikipedia (free, no key) and falls back to a
+gradient when there is none. Animations respect `prefers-reduced-motion`.
+
 ## Structure
 
 ```
 src/
-├── App.tsx                    → screen phase (planning / loading / options / chosen / error)
+├── App.tsx                    → screen phase (planning / loading / options / chosen / error) and the landing
 ├── components/
+│   ├── Layout.tsx             → header, footer, eyebrow label and decorative contour lines
 │   ├── TripWizard.tsx         → step-by-step guided form
-│   ├── TripOptions.tsx        → combinations, alternatives and budget notice
-│   ├── ItineraryPlanner.tsx   → editable place list (suggested from Google Places) and the day-by-day itinerary
-│   └── TripResult.tsx         → loading, chosen option (flight + accommodation) and errors
+│   ├── TripLoading.tsx        → animated plane and status messages while searching
+│   ├── TripOptions.tsx        → three option cards, budget meters and cheaper alternatives
+│   ├── TripResult.tsx         → chosen trip summary and the error state
+│   ├── TripParts.tsx          → destination banner, budget meter, boarding-pass flight and stay cards
+│   ├── ItineraryPlanner.tsx   → editable place list and the day-by-day timeline
+│   └── Icons.tsx              → inline SVG icons
 ├── lib/
 │   ├── analytics.ts           → PostHog init and track() helper
 │   ├── trips-client.ts        → fetch to POST /trips/options
 │   ├── itinerary-client.ts    → fetch to /trips/places/suggest and /trips/itinerary
 │   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)
-│   └── format.ts              → USD and date formatting
-└── types.ts                   → request and planner response types
+│   ├── destination-photo.ts   → destination photo from Wikipedia
+│   └── format.ts              → USD, date and duration formatting
+└── types.ts                   → request and response types
 ```
 
 ## Commands
