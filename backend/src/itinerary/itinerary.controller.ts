@@ -9,7 +9,7 @@ export class ItineraryController {
     private readonly suggester: PlaceSuggesterService,
   ) {}
 
-  /** Places worth visiting in a destination: proposed by the LLM, verified with Google Places. */
+  /** Places worth visiting in a destination: its top-rated tourist attractions on Google Places. */
   @Post('places/suggest')
   async suggest(@Body() body: { destination?: string; count?: number }) {
     if (!body.destination?.trim()) {

@@ -5,6 +5,8 @@ export interface Place extends LatLng {
   id: string;
   name: string;
   address: string;
+  /** Google place types, e.g. "tourist_attraction" or "locality". */
+  types: string[];
 }
 
 export type TravelMode = 'TRANSIT' | 'WALK' | 'DRIVE';
@@ -32,6 +34,7 @@ interface PlacesResponse {
     id: string;
     displayName?: { text: string };
     formattedAddress?: string;
+    types?: string[];
     location?: { latitude: number; longitude: number };
   }>;
 }
@@ -67,6 +70,15 @@ const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 /** Google Places (New) and Routes APIs: https://developers.google.com/maps */
 @Injectable()
 export class GoogleMapsClient {
+  private placesHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': this.apiKey(),
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.types,places.location',
+    };
+  }
+
   private apiKey(): string {
     const key = process.env.GOOGLE_MAPS_API_KEY;
     if (!key) {
@@ -78,17 +90,16 @@ export class GoogleMapsClient {
   /**
    * Resolves a free-text place ("Cerro Campanario, Bariloche") to exact coordinates, or null.
    * Google's top hit is not always the place that was asked for, so several results are
-   * requested and the one whose name best matches the query is picked.
+   * requested and the one whose name best matches the query is picked. With `strict`, a
+   * result whose name does not match is rejected instead of falling back to Google's top hit.
    */
-  async findPlace(query: string): Promise<Place | null> {
+  async findPlace(
+    query: string,
+    options: { strict?: boolean } = {},
+  ): Promise<Place | null> {
     const response = await fetch(PLACES_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': this.apiKey(),
-        'X-Goog-FieldMask':
-          'places.id,places.displayName,places.formattedAddress,places.location',
-      },
+      headers: this.placesHeaders(),
       body: JSON.stringify({ textQuery: query, pageSize: 5, languageCode: 'en' }),
     });
     if (!response.ok) {
@@ -101,15 +112,29 @@ export class GoogleMapsClient {
       query.split(',')[0],
       candidates,
       (p) => p.displayName?.text ?? '',
+      !options.strict,
     );
-    if (!place?.location) return null;
-    return {
-      id: place.id,
-      name: place.displayName?.text ?? query,
-      address: place.formattedAddress ?? '',
-      lat: place.location.latitude,
-      lng: place.location.longitude,
-    };
+    return place ? toPlace(place, query) : null;
+  }
+
+  /** The destination's best-rated tourist attractions, as ranked by Google Places. */
+  async topAttractions(destination: string, count: number): Promise<Place[]> {
+    const response = await fetch(PLACES_URL, {
+      method: 'POST',
+      headers: this.placesHeaders(),
+      body: JSON.stringify({
+        textQuery: `top tourist attractions in ${destination}`,
+        includedType: 'tourist_attraction',
+        pageSize: count,
+        languageCode: 'en',
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Google Places responded ${response.status}`);
+    }
+    return (((await response.json()) as PlacesResponse).places ?? [])
+      .filter((p) => p.location)
+      .map((p) => toPlace(p, destination));
   }
 
   /** A route between two points, or null when Google has none for that travel mode. */
@@ -172,6 +197,19 @@ function parseSeconds(duration: string | undefined): number {
   return duration ? Number.parseInt(duration, 10) || 0 : 0;
 }
 
+type ApiPlace = NonNullable<PlacesResponse['places']>[number];
+
+function toPlace(place: ApiPlace, fallbackName: string): Place {
+  return {
+    id: place.id,
+    name: place.displayName?.text ?? fallbackName,
+    address: place.formattedAddress ?? '',
+    types: place.types ?? [],
+    lat: place.location!.latitude,
+    lng: place.location!.longitude,
+  };
+}
+
 function normalize(text: string): string {
   return text
     .normalize('NFD')
@@ -184,18 +222,29 @@ function normalize(text: string): string {
 
 /**
  * Picks the candidate whose name matches `wanted`: an exact name first, then one that
- * contains it (or is contained by it), otherwise Google's own top result.
+ * shares all its words (in any order), otherwise Google's own top result (unless
+ * `fallback` is false, in which case nothing is returned).
  */
 export function pickBestMatch<T>(
   wanted: string,
   candidates: T[],
   nameOf: (candidate: T) => string,
+  fallback = true,
 ): T | undefined {
   const target = normalize(wanted);
-  const named = candidates.map((c) => ({ c, name: normalize(nameOf(c)) }));
+  const targetWords = target.split(' ');
+  const named = candidates.map((c) => {
+    const name = normalize(nameOf(c));
+    return { c, name, words: name.split(' ') };
+  });
+  // A candidate's words may all appear in the query only if it has 2+ words, so a
+  // one-letter or one-word name cannot match almost anything.
+  const sharesWords = (n: { words: string[] }) =>
+    targetWords.every((w) => n.words.includes(w)) ||
+    (n.words.length >= 2 && n.words.every((w) => targetWords.includes(w)));
   return (
     named.find((n) => n.name === target)?.c ??
-    named.find((n) => n.name.includes(target) || target.includes(n.name))?.c ??
-    candidates[0]
+    named.find(sharesWords)?.c ??
+    (fallback ? candidates[0] : undefined)
   );
 }

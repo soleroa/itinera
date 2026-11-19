@@ -6,8 +6,8 @@ Itinera's API. It has two independent paths:
    accommodation and builds combinations that fit the budget. It **uses no LLM**
    and is what the frontend consumes.
 2. **ReAct agent** (`POST /agent`): from a natural-language request it reasons →
-   calls a tool → observes → repeats → answers. Needs Ollama. It is the base for
-   the day-by-day itinerary.
+   calls a tool → observes → repeats → answers. Needs Ollama. The frontend no
+   longer uses it; it is kept as a working example of the agent pattern.
 
 The frontend (React + Vite + Tailwind) lives in `../frontend` — see
 [frontend/README.md](../frontend/README.md).
@@ -39,14 +39,16 @@ The planner reuses `FlightsTool` and `AccommodationTool` by calling them directl
 
 ### The itinerary (`src/itinerary/`)
 
-Same principle: the LLM may *propose* places, but grouping, ordering and timing are
-computed by code.
+Same principle: grouping, ordering and timing are computed by code, and every place comes
+from Google Places, so nothing is invented. (An earlier version asked a local LLM to
+propose places; qwen3:8b returned namesakes in other cities and non-attractions such
+as bus stops, so suggestions now come straight from Google's ranking.)
 
 | File | Responsibility |
 |---|---|
 | `geo.ts` | Pure functions: haversine distance, `clusterIntoDays` (deterministic k-means with a per-day capacity) and `nearestNeighborOrder` |
 | `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes`. Places often ranks a different place first (e.g. "Cerro Catedral, Bariloche" returned Cerro Leon), so it asks for 5 results and `pickBestMatch` chooses the one whose name matches |
-| `place-suggester.service.ts` | Asks the LLM for attractions and keeps only those Google Places can resolve |
+| `place-suggester.service.ts` | Suggests a destination's top-rated tourist attractions from Google Places |
 | `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK`, then `DRIVE`; legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented |
 | `itinerary.controller.ts` | `POST /trips/places/suggest`, `POST /trips/itinerary` |
 
@@ -154,7 +156,7 @@ backend/
 │   ├── itinerary/
 │   │   ├── geo.ts                 → distance, clustering by day, nearest-neighbor order
 │   │   ├── google-maps.client.ts  → Places + Routes
-│   │   ├── place-suggester.service.ts → LLM proposes, Places verifies
+│   │   ├── place-suggester.service.ts → top attractions from Google Places
 │   │   ├── itinerary.service.ts   → days, legs and warnings
 │   │   ├── itinerary.controller.ts → /trips/places/suggest, /trips/itinerary
 │   │   └── itinerary.module.ts
@@ -217,7 +219,14 @@ curl -X POST http://localhost:3001/trips/options \
 
 ### Trying the itinerary
 
-Needs `GOOGLE_MAPS_API_KEY` (and Ollama only for `/trips/places/suggest`):
+Needs `GOOGLE_MAPS_API_KEY`. Suggested places for a destination:
+
+```bash
+curl -X POST http://localhost:3001/trips/places/suggest \
+  -H 'Content-Type: application/json' -d '{"destination":"Bariloche","count":8}'
+```
+
+The itinerary itself:
 
 ```bash
 curl -X POST http://localhost:3001/trips/itinerary \
@@ -241,9 +250,8 @@ curl -X POST http://localhost:3001/agent \
 **Done:**
 - Day-by-day itinerary (`POST /trips/itinerary`, `POST /trips/places/suggest`):
   places grouped by proximity, ordered from the hotel, each leg timed with Google
-  Routes. Logic is unit-tested with a fake Google client and was run once against the
-  live Places and Routes APIs (Bariloche); the LLM place suggestions have not been
-  tried live
+  Routes. Logic is unit-tested with a fake Google client and run against the live
+  Places and Routes APIs (Bariloche, Mendoza)
 - Unit tests for the combination logic (`npm test`, Node's built-in runner)
 - Deterministic planner (`POST /trips/options`): flight + accommodation
   combinations within a USD budget, cheaper alternatives and a notice of what the

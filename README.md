@@ -10,7 +10,7 @@ variants.
 
 > **Status:** work in progress. Budget-aware combination search and the
 > day-by-day itinerary are implemented. The itinerary has been run against the live
-> Google APIs for Bariloche only (see the [Roadmap](#roadmap)).
+> Google APIs for Bariloche and Mendoza only (see the [Roadmap](#roadmap)).
 
 ## What it does today
 
@@ -21,8 +21,9 @@ variants.
   quality-to-price ratio) and **best** (highest quality within the budget).
 - If the budget falls short: reports the shortfall and tries alternatives (one or
   two fewer nights, or traveling one week later), capped at 3 extra searches.
-- Builds a **day-by-day itinerary** for the option you choose: places are proposed
-  by a local LLM (and checked against Google Places) or typed by you, grouped by
+- Builds a **day-by-day itinerary** for the option you choose: places are suggested
+  from Google Places' top-rated attractions for the destination (or typed by you),
+  grouped by
   proximity into days, and ordered starting from your hotel. Each leg shows how to
   get there by public transport (Google Routes), falling back to walking or
   driving when there is no transit data. A place far from the rest is accepted but
@@ -42,7 +43,7 @@ TripPlannerService (NestJS, no LLM)
    └─ combinations.ts    → builds flight+hotel pairs, filters by budget,
                            picks cheapest / balanced / best
 
-Chosen option → POST /trips/places/suggest   (LLM proposes, Google Places verifies)
+Chosen option → POST /trips/places/suggest   (Google Places' top attractions)
               → POST /trips/itinerary        (code clusters and orders; Google Routes times each leg)
 ```
 
@@ -52,8 +53,8 @@ invents prices, so sums and the budget filter are deterministic and run on the
 prices the APIs return.
 
 The repo also keeps the original agent (ReAct pattern, `POST /agent`), which uses
-a local LLM with tools. The frontend no longer uses it; it stays as the base for
-the day-by-day itinerary. Details in [backend/README.md](backend/README.md).
+a local LLM with tools. The frontend no longer uses it; it is kept as a working
+example of the agent pattern. Details in [backend/README.md](backend/README.md).
 
 ## Structure
 
@@ -74,8 +75,8 @@ itinera/
 - A **Google Maps Platform API key** with *Places API (New)* and *Routes API*
   enabled, only for the day-by-day itinerary. Without it, flight and hotel search
   still works.
-- **Ollama** only for place suggestions and the agent (`/agent`); the planner does
-  not need it. You can always type the places yourself.
+- **Ollama** only for the legacy agent (`/agent`); neither the planner nor the
+  itinerary needs it.
 
 ### 1. Backend
 
@@ -151,7 +152,7 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 - [x] Day-by-day itinerary with proximity clustering and nearest-neighbor ordering in code.
 - [x] Local transport with Google Routes (`TRANSIT`), falling back to walking or driving.
 - [ ] Verify the itinerary against the live Google APIs in more cities, including ones
-  with poor public transport coverage, and the LLM place suggestions with Ollama.
+  with poor public transport coverage.
 - [ ] Caching of Places/Routes results and per-user limits to control costs.
 
 ## License

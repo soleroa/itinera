@@ -56,17 +56,17 @@ export function TripResult({
       </div>
 
       {!error && result && result.flights.length > 0 && (
-        <Section title="Recommended flights">
+        <Section title="Your flight">
           {result.flights.map((f, i) => (
-            <FlightCard key={i} flight={f} best={i === 0} />
+            <FlightCard key={i} flight={f} best={false} />
           ))}
         </Section>
       )}
 
       {!error && result && result.accommodations.length > 0 && (
-        <Section title="Recommended accommodation">
+        <Section title="Your accommodation">
           {result.accommodations.map((a, i) => (
-            <AccommodationCard key={i} stay={a} travelers={trip.travelers} best={i === 0} />
+            <AccommodationCard key={i} stay={a} travelers={trip.travelers} best={false} />
           ))}
         </Section>
       )}

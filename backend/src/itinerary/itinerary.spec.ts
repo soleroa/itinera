@@ -4,12 +4,12 @@ import { BadRequestException } from '@nestjs/common';
 import type { GoogleMapsClient, Place, Route, TravelMode } from './google-maps.client';
 import { ItineraryService, MAX_LEG_MINUTES } from './itinerary.service';
 import { pickBestMatch } from './google-maps.client';
-import { parseNames } from './place-suggester.service';
 
 const place = (name: string, lat: number, lng: number): Place => ({
   id: name,
   name,
   address: '',
+  types: [],
   lat,
   lng,
 });
@@ -150,18 +150,6 @@ describe('ItineraryService.build', () => {
   });
 });
 
-describe('parseNames', () => {
-  it('extracts a JSON array even with surrounding text', () => {
-    assert.deepEqual(parseNames('Sure! ["A", "B"] enjoy'), ['A', 'B']);
-  });
-
-  it('returns an empty list for anything that is not an array of strings', () => {
-    assert.deepEqual(parseNames('no json here'), []);
-    assert.deepEqual(parseNames('[1, 2]'), []);
-    assert.deepEqual(parseNames('[broken'), []);
-  });
-});
-
 describe('pickBestMatch', () => {
   const name = (n: string) => n;
 
@@ -179,11 +167,27 @@ describe('pickBestMatch', () => {
     );
   });
 
+  it('matches by shared words in any order', () => {
+    assert.equal(
+      pickBestMatch('Hotel Llao Llao', ['Cerro Leon', 'Llao Llao Hotel & Resort'], name),
+      'Llao Llao Hotel & Resort',
+    );
+  });
+
+  it('does not match on a one-letter candidate', () => {
+    assert.equal(pickBestMatch('Atlantis', ['A', 'B'], name, false), undefined);
+  });
+
   it('accepts a name that contains the query', () => {
     assert.equal(
       pickBestMatch('Llao Llao', ['Cerro Leon', 'Llao Llao Hotel'], name),
       'Llao Llao Hotel',
     );
+  });
+
+  it('returns nothing when strict and no name matches', () => {
+    assert.equal(pickBestMatch('Atlantis', ['A', 'B'], name, false), undefined);
+    assert.equal(pickBestMatch('A', ['A', 'B'], name, false), 'A');
   });
 
   it('falls back to the first result when nothing matches', () => {
