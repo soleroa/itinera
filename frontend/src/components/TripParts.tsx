@@ -26,21 +26,22 @@ export function DestinationBanner({ trip, compact = false }: { trip: TripRequest
           <span className="label absolute right-3 top-3 z-10 bg-black/40 px-2 py-1 text-white/80">Photo: Wikipedia</span>
         )}
       </div>
-      <dl className="grid grid-cols-2 divide-x divide-line border-t border-ink bg-card sm:grid-cols-4">
-        <Meta label="Route" value={`${trip.origin} → ${trip.destination}`} />
+      <dl className="grid grid-cols-2 gap-px border-t border-ink bg-line sm:grid-cols-4">
+        <Meta label="Route" value={`${trip.origin} → ${trip.destination}`} wide />
         <Meta label="Dates" value={formatDateRange(trip.departure, trip.returnDate)} />
         <Meta label="Travelers" value={String(trip.travelers)} />
-        <Meta label="Budget" value={trip.maxBudget !== null ? formatUsd(trip.maxBudget) : 'Open'} />
+        <Meta label="Budget" value={trip.maxBudget !== null ? formatUsd(trip.maxBudget) : 'Open'} wide />
       </dl>
     </section>
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+/** One cell of the trip summary strip. `wide` spans both columns on small screens. */
+function Meta({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 px-4 py-3">
+    <div className={`flex min-w-0 flex-col gap-0.5 bg-card px-4 py-3 ${wide ? 'col-span-2 sm:col-span-1' : ''}`}>
       <dt className="label">{label}</dt>
-      <dd className="truncate font-medium">{value}</dd>
+      <dd className="font-medium sm:truncate">{value}</dd>
     </div>
   );
 }
