@@ -141,4 +141,4 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 
 ## License
 
-To be decided. `backend/vendor/fli-js` is MIT (see its `LICENSE`).
+[MIT](LICENSE). `backend/vendor/fli-js` is also MIT (see its own `LICENSE`).
