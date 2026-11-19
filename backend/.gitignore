@@ -4,3 +4,4 @@ dist/
 *.tsbuildinfo
 !vendor/fli-js/dist/
 .cache/
+.test-dist/

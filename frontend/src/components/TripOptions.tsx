@@ -16,7 +16,7 @@ export function TripOptions({
 }: {
   trip: TripRequest;
   data: TripOptionsResponse;
-  onChoose: (option: TripOption) => void;
+  onChoose: (option: TripOption, dates?: { departure: string; returnDate: string }) => void;
   onReset: () => void;
 }) {
   const overBudget = data.status === 'over_budget';
@@ -63,7 +63,7 @@ export function TripOptions({
           title={alt.change}
           hint={dates(alt)}
           action="Choose this alternative"
-          onChoose={() => onChoose(alt.option)}
+          onChoose={() => onChoose(alt.option, { departure: alt.departure, returnDate: alt.returnDate })}
         />
       ))}
 

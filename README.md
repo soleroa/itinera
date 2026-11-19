@@ -8,8 +8,9 @@ returns up to three flight + accommodation combinations (cheapest, balanced and
 best). If the budget falls short, it tells you by how much and suggests cheaper
 variants.
 
-> **Status:** work in progress. Budget-aware combination search works end to end;
-> the day-by-day itinerary with local transport is not implemented yet (see the
+> **Status:** work in progress. Budget-aware combination search and the
+> day-by-day itinerary are implemented; the itinerary needs a Google Maps key and
+> has not been tried against the live Google APIs yet (see the
 > [Roadmap](#roadmap)).
 
 ## What it does today
@@ -21,6 +22,12 @@ variants.
   quality-to-price ratio) and **best** (highest quality within the budget).
 - If the budget falls short: reports the shortfall and tries alternatives (one or
   two fewer nights, or traveling one week later), capped at 3 extra searches.
+- Builds a **day-by-day itinerary** for the option you choose: places are proposed
+  by a local LLM (and checked against Google Places) or typed by you, grouped by
+  proximity into days, and ordered starting from your hotel. Each leg shows how to
+  get there by public transport (Google Routes), falling back to walking or
+  driving when there is no transit data. A place far from the rest is accepted but
+  flagged with a warning.
 - Always states that the budget covers **flight and accommodation only**: food,
   tickets and local transport are not included.
 
@@ -35,6 +42,9 @@ TripPlannerService (NestJS, no LLM)
    ├─ AccommodationTool  → Google Hotels (SerpApi)      ┘
    └─ combinations.ts    → builds flight+hotel pairs, filters by budget,
                            picks cheapest / balanced / best
+
+Chosen option → POST /trips/places/suggest   (LLM proposes, Google Places verifies)
+              → POST /trips/itinerary        (code clusters and orders; Google Routes times each leg)
 ```
 
 **Core design decision:** anything verifiable is computed by code, not by a
@@ -62,7 +72,11 @@ itinera/
 - A **SerpApi API key** ([serpapi.com](https://serpapi.com/manage-api-key); the
   free plan has a monthly search quota). Each combination search uses one hotel
   search, plus up to three more when trying alternatives.
-- **Ollama** only if you want the agent (`/agent`); the planner does not need it.
+- A **Google Maps Platform API key** with *Places API (New)* and *Routes API*
+  enabled, only for the day-by-day itinerary. Without it, flight and hotel search
+  still works.
+- **Ollama** only for place suggestions and the agent (`/agent`); the planner does
+  not need it. You can always type the places yourself.
 
 ### 1. Backend
 
@@ -110,6 +124,7 @@ Backend variables (`backend/.env`):
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `SERPAPI_KEY` | Yes | — | Accommodation search |
+| `GOOGLE_MAPS_API_KEY` | For itineraries | — | Google Places + Routes |
 | `PORT` | No | `3001` | Server port |
 | `SERPAPI_BASE_URL` | No | `https://serpapi.com/search.json` | SerpApi endpoint |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | `http://localhost:11434` / `qwen3:8b` | `/agent` only |
@@ -125,19 +140,19 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
   break if Google changes its format, and its use may not be allowed by Google's
   terms of service: this is a personal/educational project, not meant for
   commercial production use.
-- **Cost per search.** SerpApi limits searches per plan; there is no caching or
-  per-user limit yet.
+- **Cost per search.** SerpApi limits searches per plan, and one itinerary makes
+  roughly 20–25 Google Routes calls; there is no caching or per-user limit yet.
+- **Transit coverage.** Google has no public transport data in some cities; those
+  legs fall back to walking or driving and are labelled as such.
 - **Airports:** the most searched Argentine cities are resolved by hand; anything
   else relies on fli-js's airport search.
 
 ## Roadmap
 
-- [ ] Day-by-day itinerary: places from Google Places, grouped by proximity
-  (clustering and nearest-neighbor ordering in code, not in the prompt).
-- [ ] Step-by-step local transport with Google Routes (`TRANSIT`), falling back to
-  walking or driving when there is no public transport data.
+- [x] Day-by-day itinerary with proximity clustering and nearest-neighbor ordering in code.
+- [x] Local transport with Google Routes (`TRANSIT`), falling back to walking or driving.
+- [ ] Verify the itinerary against the live Google APIs in several cities.
 - [ ] Caching of Places/Routes results and per-user limits to control costs.
-- [ ] Automated tests for the combination logic.
 
 ## License
 

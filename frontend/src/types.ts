@@ -62,3 +62,48 @@ export interface TripOptionsResponse {
   alternatives?: Alternative[];
   notice: string;
 }
+
+export interface Place {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RouteStep {
+  mode: string;
+  instruction?: string;
+  line?: string;
+  vehicle?: string;
+  from?: string;
+  to?: string;
+  seconds: number;
+}
+
+export interface Leg {
+  from: string;
+  mode: 'TRANSIT' | 'WALK' | 'DRIVE';
+  transitAvailable: boolean;
+  minutes: number;
+  meters: number;
+  steps: RouteStep[];
+}
+
+export interface Stop {
+  place: Place;
+  leg: Leg | null;
+}
+
+export interface ItineraryDay {
+  day: number;
+  stops: Stop[];
+  totalTravelMinutes: number;
+  warnings: string[];
+}
+
+export interface Itinerary {
+  hotel: Place;
+  days: ItineraryDay[];
+  unresolved: string[];
+}

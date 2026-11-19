@@ -22,11 +22,13 @@ export function TripResult({
   result,
   error,
   onReset,
+  children,
 }: {
   trip: TripRequest;
   result: AgentResponse | null;
   error: string | null;
   onReset: () => void;
+  children?: React.ReactNode;
 }) {
   const chips = [
     `${trip.origin} → ${trip.destination}`,
@@ -80,6 +82,8 @@ export function TripResult({
         {error ?? result?.answer}
       </article>
       )}
+
+      {children}
 
       <button
         onClick={onReset}

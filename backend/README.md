@@ -37,6 +37,19 @@ prices from the APIs. All amounts are in USD.
 The planner reuses `FlightsTool` and `AccommodationTool` by calling them directly
 (with the internal `maxResults` parameter, which is not in the schema the LLM sees).
 
+### The itinerary (`src/itinerary/`)
+
+Same principle: the LLM may *propose* places, but grouping, ordering and timing are
+computed by code.
+
+| File | Responsibility |
+|---|---|
+| `geo.ts` | Pure functions: haversine distance, `clusterIntoDays` (deterministic k-means with a per-day capacity) and `nearestNeighborOrder` |
+| `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes` |
+| `place-suggester.service.ts` | Asks the LLM for attractions and keeps only those Google Places can resolve |
+| `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK`, then `DRIVE`; legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented |
+| `itinerary.controller.ts` | `POST /trips/places/suggest`, `POST /trips/itinerary` |
+
 ### The agent's three modules
 
 | Module | Responsibility | What it does NOT know |
@@ -138,6 +151,13 @@ backend/
 │   │   ├── combinations.ts        → cheapest / balanced / best selection
 │   │   ├── planner.controller.ts  → POST /trips/options
 │   │   └── planner.module.ts
+│   ├── itinerary/
+│   │   ├── geo.ts                 → distance, clustering by day, nearest-neighbor order
+│   │   ├── google-maps.client.ts  → Places + Routes
+│   │   ├── place-suggester.service.ts → LLM proposes, Places verifies
+│   │   ├── itinerary.service.ts   → days, legs and warnings
+│   │   ├── itinerary.controller.ts → /trips/places/suggest, /trips/itinerary
+│   │   └── itinerary.module.ts
 │   ├── agent/
 │   │   ├── llm-provider.ts        → LlmProvider contract (abstract class)
 │   │   ├── react-agent.service.ts → the ReAct loop
@@ -172,6 +192,7 @@ Environment variables:
 | Variable | Default | Purpose |
 |---|---|---|
 | `SERPAPI_KEY` | — | **Required.** Accommodation. Get one at [serpapi.com](https://serpapi.com/manage-api-key) (free plan with a monthly quota) |
+| `GOOGLE_MAPS_API_KEY` | — | Required for the itinerary: Places API (New) + Routes API |
 | `PORT` | `3001` | Server port |
 | `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | SerpApi endpoint |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | `/agent` only: where Ollama is |
@@ -180,12 +201,28 @@ Environment variables:
 Without `SERPAPI_KEY`, accommodation search fails (there is no placeholder data).
 Each search uses one from the SerpApi quota.
 
+### Running the tests
+
+```bash
+npm test   # compiles to .test-dist/ and runs node --test on *.spec.ts
+```
+
 ### Trying the planner
 
 ```bash
 curl -X POST http://localhost:3001/trips/options \
   -H 'Content-Type: application/json' \
   -d '{"origin":"Buenos Aires","destination":"Bariloche","departure":"2026-12-15","returnDate":"2026-12-22","travelers":2,"maxBudget":2500}'
+```
+
+### Trying the itinerary
+
+Needs `GOOGLE_MAPS_API_KEY` (and Ollama only for `/trips/places/suggest`):
+
+```bash
+curl -X POST http://localhost:3001/trips/itinerary \
+  -H 'Content-Type: application/json' \
+  -d '{"destination":"Bariloche","hotel":"Hotel Edelweiss","days":3,"places":["Cerro Campanario","Cerro Catedral","Centro Cívico"]}'
 ```
 
 ### Trying the agent (optional)
@@ -202,6 +239,11 @@ curl -X POST http://localhost:3001/agent \
 ## Current status
 
 **Done:**
+- Day-by-day itinerary (`POST /trips/itinerary`, `POST /trips/places/suggest`):
+  places grouped by proximity, ordered from the hotel, each leg timed with Google
+  Routes. Logic is unit-tested with a fake Google client; **not yet tried against
+  the live APIs**
+- Unit tests for the combination logic (`npm test`, Node's built-in runner)
 - Deterministic planner (`POST /trips/options`): flight + accommodation
   combinations within a USD budget, cheaper alternatives and a notice of what the
   budget does not cover
@@ -214,8 +256,6 @@ curl -X POST http://localhost:3001/agent \
 - ReAct agent with `OllamaProvider`, and a hardcoded weather tool (no real API)
 
 **Pending:**
-- Day-by-day itinerary with Google Places (grouped by proximity) and local
-  transport with Google Routes
+- Try the itinerary against the live Google APIs in several cities
 - Caching and per-user limits to control API costs
-- Automated tests for `combinations.ts`
 - Better error handling in the agent loop

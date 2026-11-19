@@ -22,7 +22,7 @@ export class OllamaProvider extends LlmProvider {
     process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
   private readonly model = process.env.OLLAMA_MODEL ?? "qwen3:8b";
 
-  /** Pasa las llamadas a tools en el formato nativo de Ollama, no como texto. */
+  /** Passes tool calls in Ollama's native format, not as text. */
   private toOllamaMessage(message: LlmMessage) {
     if (message.toolCall) {
       return {

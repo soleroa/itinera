@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TripWizard } from './components/TripWizard';
 import { TripLoading, TripResult } from './components/TripResult';
+import { ItineraryPlanner } from './components/ItineraryPlanner';
 import { TripOptions } from './components/TripOptions';
 import { fetchTripOptions, TripsError } from './lib/trips-client';
 import { track } from './lib/analytics';
@@ -48,9 +49,9 @@ export default function App() {
           <TripOptions
             trip={phase.trip}
             data={phase.data}
-            onChoose={(option) => {
+            onChoose={(option, dates) => {
               track('trip_option_chosen', { level: option.level });
-              setPhase({ name: 'chosen', trip: phase.trip, option });
+              setPhase({ name: 'chosen', trip: { ...phase.trip, ...dates }, option });
             }}
             onReset={() => setPhase({ name: 'planning' })}
           />
@@ -65,7 +66,9 @@ export default function App() {
             }}
             error={null}
             onReset={() => setPhase({ name: 'planning' })}
-          />
+          >
+            <ItineraryPlanner trip={phase.trip} option={phase.option} />
+          </TripResult>
         )}
         {phase.name === 'error' && (
           <TripResult

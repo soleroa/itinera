@@ -36,10 +36,12 @@ src/
 ├── components/
 │   ├── TripWizard.tsx         → step-by-step guided form
 │   ├── TripOptions.tsx        → combinations, alternatives and budget notice
+│   ├── ItineraryPlanner.tsx   → editable place list and the day-by-day itinerary
 │   └── TripResult.tsx         → loading, chosen option (flight + accommodation) and errors
 ├── lib/
 │   ├── analytics.ts           → PostHog init and track() helper
 │   ├── trips-client.ts        → fetch to POST /trips/options
+│   ├── itinerary-client.ts    → fetch to /trips/places/suggest and /trips/itinerary
 │   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)
 │   └── format.ts              → USD and date formatting
 └── types.ts                   → request and planner response types
