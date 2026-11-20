@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { buildItinerary, ItineraryError, suggestPlaces } from '../lib/itinerary-client';
-import { formatDuration, nightsBetween, plural } from '../lib/format';
-import type { Itinerary, ItineraryDay, Leg, TripOption, TripRequest } from '../types';
+import { buildItinerary, fetchTransfer, ItineraryError, suggestPlaces } from '../lib/itinerary-client';
+import { track } from '../lib/analytics';
+import { formatDuration, plural } from '../lib/format';
+import type { StopPlan } from '../lib/saved-trips';
+import type { Itinerary, ItineraryDay, Leg, Transfer, TripOption, TripRequest } from '../types';
 import { BusIcon, CarIcon, WalkIcon } from './Icons';
 import { Eyebrow } from './Layout';
 
@@ -19,16 +21,90 @@ function messageOf(error: unknown): string {
   return error instanceof ItineraryError ? error.message : 'Could not reach the backend.';
 }
 
-export function ItineraryPlanner({
+/** The days of the whole trip: one planner per city, with the way to get between cities in between. */
+export function TripItineraries({
   trip,
   option,
-  saved,
+  plan,
   onSave,
 }: {
   trip: TripRequest;
   option: TripOption;
+  /** Work restored from a saved trip, one entry per city. */
+  plan?: StopPlan[];
+  onSave?: (index: number, state: StopPlan) => void;
+}) {
+  const multi = trip.stops.length > 1;
+  return (
+    <>
+      {trip.stops.map((stop, i) => (
+        <Fragment key={`${stop.city}-${i}`}>
+          {i > 0 && <TransferBlock from={trip.stops[i - 1].city} to={stop.city} />}
+          <ItineraryPlanner
+            city={stop.city}
+            nights={stop.nights}
+            hotel={option.accommodations[i]?.name ?? ''}
+            heading={multi ? { eyebrow: `Stop ${i + 1} of ${trip.stops.length} · ${plural(stop.nights, 'night')}` } : undefined}
+            saved={plan?.[i]}
+            onSave={(state) => onSave?.(i, state)}
+          />
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** How to get from one city to the next. Shown for information: it is not part of the budget. */
+function TransferBlock({ from, to }: { from: string; to: string }) {
+  const [transfer, setTransfer] = useState<Transfer | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTransfer(null);
+    setFailed(false);
+    fetchTransfer(from, to)
+      .then((t) => !cancelled && setTransfer(t))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [from, to]);
+
+  return (
+    <section className="flex flex-col gap-3 border-t-2 border-ink pt-8" aria-label={`From ${from} to ${to}`}>
+      <Eyebrow>Between cities</Eyebrow>
+      <h3 className="display text-4xl sm:text-5xl">
+        {from} <span className="text-accent">→</span> {to}
+      </h3>
+      {failed ? (
+        <p className="font-mono text-xs text-ink-3">We couldn't look up this transfer.</p>
+      ) : !transfer ? (
+        <span className="skeleton h-10 w-64" aria-busy="true" aria-label="Loading transfer" />
+      ) : (
+        <LegBlock leg={transfer.leg} unavailable="No route found between these cities." />
+      )}
+      <p className="label normal-case tracking-normal">Transfers are not included in your budget.</p>
+    </section>
+  );
+}
+
+export function ItineraryPlanner({
+  city,
+  nights,
+  hotel,
+  heading,
+  saved,
+  onSave,
+}: {
+  city: string;
+  nights: number;
+  /** Where each day starts: the stay chosen for this city. */
+  hotel: string;
+  /** Overrides the caption above the title (used when the trip has several cities). */
+  heading?: { eyebrow: string };
   /** Work restored from a saved trip. */
-  saved?: { places: string[] | null; itinerary: Itinerary | null };
+  saved?: StopPlan;
   /** Called whenever the places or the built itinerary change, so they can be stored. */
   onSave?: (state: { places: string[]; itinerary: Itinerary | null }) => void;
 }) {
@@ -41,16 +117,17 @@ export function ItineraryPlanner({
   const [itinerary, setItinerary] = useState<Itinerary | null>(saved?.itinerary ?? null);
   const [suggestionsReady, setSuggestionsReady] = useState(saved?.places != null);
 
-  const days = nightsBetween(trip.departure, trip.returnDate);
+  const days = nights;
 
   useEffect(() => {
     if (saved?.places != null) return; // restored from a saved trip: keep the user's list
     let cancelled = false;
-    suggestPlaces(trip.destination)
+    suggestPlaces(city)
       .then((suggested) => {
         if (cancelled) return;
         setPlaces(suggested.map((p) => p.name));
         setSuggestionsReady(true);
+        track('places_suggested', { count: suggested.length });
       })
       .catch((err) => !cancelled && setSuggestionError(messageOf(err)))
       .finally(() => !cancelled && setLoadingSuggestions(false));
@@ -58,7 +135,7 @@ export function ItineraryPlanner({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip.destination]);
+  }, [city]);
 
   // Persist the user's work. Skipped until suggestions loaded, so a draft is never saved half-empty.
   const restored = useRef(saved != null);
@@ -74,24 +151,30 @@ export function ItineraryPlanner({
   const addPlace = (e: FormEvent) => {
     e.preventDefault();
     const name = draft.trim();
-    if (name && !places.includes(name)) setPlaces([...places, name]);
+    if (name && !places.includes(name)) {
+      setPlaces([...places, name]);
+      track('place_added');
+    }
     setDraft('');
   };
 
   const build = async () => {
     setBuilding(true);
     setError(null);
+    track('itinerary_requested', { days, places: places.length });
     try {
       setItinerary(
         await buildItinerary({
-          destination: trip.destination,
-          hotel: option.accommodation.name,
+          destination: city,
+          hotel,
           days,
           places,
         }),
       );
+      track('itinerary_built', { days, places: places.length });
     } catch (err) {
       setError(messageOf(err));
+      track('itinerary_failed', { error: messageOf(err) });
     } finally {
       setBuilding(false);
     }
@@ -100,13 +183,13 @@ export function ItineraryPlanner({
   return (
     <section className="flex flex-col gap-8 border-t-2 border-ink pt-10">
       <div className="flex flex-col gap-4">
-        <Eyebrow>Step 2 of 2 · Your days</Eyebrow>
+        <Eyebrow>{heading?.eyebrow ?? 'Step 2 of 2 · Your days'}</Eyebrow>
         <h2 className="display max-w-3xl text-5xl sm:text-7xl">
-          {itinerary ? 'Your itinerary.' : 'What do you want to see?'}
+          {heading ? (itinerary ? `${city}.` : `What to see in ${city}?`) : itinerary ? 'Your itinerary.' : 'What do you want to see?'}
         </h2>
         {!itinerary && (
           <p className="max-w-2xl text-lg text-ink-2">
-            These are the top-rated places in {trip.destination}. Cross out what you don't want and add your own. We
+            These are the top-rated places in {city}. Cross out what you don't want and add your own. We
             group them by proximity into {plural(days, 'day')}, starting from your hotel, and work out how to get
             between them.
           </p>
@@ -265,9 +348,9 @@ function Node({ tone, children }: { tone: 'start' | 'stop'; children: React.Reac
   );
 }
 
-function LegBlock({ leg }: { leg: Leg | null }) {
+function LegBlock({ leg, unavailable = 'No route found from the previous stop.' }: { leg: Leg | null; unavailable?: string }) {
   if (!leg) {
-    return <p className="py-1 font-mono text-xs text-ink-3">No route found from the previous stop.</p>;
+    return <p className="py-1 font-mono text-xs text-ink-3">{unavailable}</p>;
   }
   const { label, Icon } = MODES[leg.mode];
   const long = leg.minutes > LONG_LEG_MINUTES;

@@ -27,6 +27,13 @@ export interface Leg {
   steps: Route['steps'];
 }
 
+export interface Transfer {
+  from: string;
+  to: string;
+  /** Null if no route could be found at all. */
+  leg: Leg | null;
+}
+
 export interface Stop {
   place: Place;
   /** Null if no route could be found at all. */
@@ -140,6 +147,27 @@ export class ItineraryService {
   }
 
   /**
+   * How to get from one city to the next: public transport (train or bus) first, then driving.
+   * Walking is never offered between cities. The duration comes from Google Routes, never invented.
+   */
+  async transfer(fromCity: string, toCity: string): Promise<Transfer> {
+    const [from, to] = await Promise.all([
+      this.maps.findPlace(fromCity),
+      this.maps.findPlace(toCity),
+    ]);
+    if (!from || !to) {
+      throw new BadRequestException(
+        `Could not find ${!from ? fromCity : toCity} on the map.`,
+      );
+    }
+    const when = daytimeTomorrow();
+    const leg =
+      (await this.tryLeg(from, to, 'TRANSIT', when)) ??
+      (await this.tryLeg(from, to, 'DRIVE', when));
+    return { from: fromCity, to: toCity, leg };
+  }
+
+  /**
    * Public transport first; if Google has none, walking, or driving when the walk is longer
    * than MAX_LEG_MINUTES (and driving is actually faster). Never invented.
    */
@@ -153,9 +181,14 @@ export class ItineraryService {
     return walk;
   }
 
-  private async tryLeg(from: Place, to: Place, mode: TravelMode): Promise<Leg | null> {
+  private async tryLeg(
+    from: Place,
+    to: Place,
+    mode: TravelMode,
+    departureTime?: string,
+  ): Promise<Leg | null> {
     try {
-      const route = await this.maps.route(from, to, mode);
+      const route = await this.maps.route(from, to, mode, departureTime);
       if (!route) return null;
       return {
         from: from.name,
@@ -172,4 +205,12 @@ export class ItineraryService {
       return null;
     }
   }
+}
+
+/** Tomorrow at 09:00 UTC (morning in the Americas, midday in Europe): a time when long-distance transit runs. */
+function daytimeTomorrow(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(9, 0, 0, 0);
+  return d.toISOString();
 }

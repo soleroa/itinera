@@ -20,6 +20,8 @@ export function PlaceSearch({
   placeholder,
   className,
   onKind,
+  onSelectCity,
+  addedCities = [],
 }: {
   id: string;
   value: string;
@@ -28,6 +30,13 @@ export function PlaceSearch({
   className: string;
   /** Tells the form whether the chosen place is a whole country/region (too broad), or null once edited. */
   onKind?: (kind: CitySuggestion['kind'] | null) => void;
+  /**
+   * When given, a chosen city is handed over (and the box cleared) so the form can collect several
+   * cities, and a country's suggested cities are added one by one instead of replacing the text.
+   */
+  onSelectCity?: (city: string) => void;
+  /** Cities the form already has, so the suggested ones can be shown as taken. */
+  addedCities?: string[];
 }) {
   const listId = useId();
   const [open, setOpen] = useState(false);
@@ -63,6 +72,16 @@ export function PlaceSearch({
   }, [value, open]);
 
   const choose = (city: CitySuggestion) => {
+    if (onSelectCity && city.kind === 'city') {
+      picked.current = null;
+      onSelectCity(city.name);
+      onChange('');
+      setOpen(false);
+      setSuggestions([]);
+      setBroad(null);
+      onKind?.(null);
+      return;
+    }
     picked.current = city.name;
     onChange(city.name);
     setOpen(false);
@@ -118,7 +137,16 @@ export function PlaceSearch({
           searching…
         </span>
       )}
-      {broad && <BroadHint place={broad} onPick={(name) => choose({ id: name, name, detail: '', kind: 'city' })} />}
+      {broad && (
+        <BroadHint
+          place={broad}
+          multi={Boolean(onSelectCity)}
+          added={addedCities}
+          onPick={(name) =>
+            onSelectCity ? onSelectCity(name) : choose({ id: name, name, detail: '', kind: 'city' })
+          }
+        />
+      )}
       {showList && (
         <ul
           id={listId}
@@ -167,27 +195,49 @@ export function PlaceSearch({
   );
 }
 
-/** Shown after picking a country or region: those are too broad, so nudge toward a real city. */
-function BroadHint({ place, onPick }: { place: CitySuggestion; onPick: (city: string) => void }) {
+/** Shown after picking a country or region: those are too broad, so nudge toward real cities. */
+function BroadHint({
+  place,
+  multi,
+  added,
+  onPick,
+}: {
+  place: CitySuggestion;
+  /** The trip can have several cities: the suggestions are toggles to add, not a replacement. */
+  multi: boolean;
+  added: string[];
+  onPick: (city: string) => void;
+}) {
   const cities = popularCities(place.name);
+  const taken = (c: string) => added.some((a) => a.toLowerCase() === c.toLowerCase());
   return (
     <div className="mt-3 border-l-2 border-accent bg-paper-2 px-3 py-2 text-sm">
       <p className="text-ink-2">
-        <b className="text-ink">{place.name}</b> is a whole {place.kind}. Pick a city so we can search flights and plan
-        the days{cities.length > 0 ? ':' : '.'}
+        <b className="text-ink">{place.name}</b> is a whole {place.kind}.{' '}
+        {multi
+          ? cities.length > 0
+            ? 'Which cities do you want to visit? Pick one or several, or search for another:'
+            : 'Search for the cities you want to visit.'
+          : `Pick a city so we can search flights and plan the days${cities.length > 0 ? ':' : '.'}`}
       </p>
       {cities.length > 0 && (
-        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs">
-          {cities.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => onPick(c)}
-              className="font-medium text-accent underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent"
-            >
-              {c}
-            </button>
-          ))}
+        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-2 font-mono text-xs">
+          {cities.map((c) =>
+            multi && taken(c) ? (
+              <span key={c} className="border border-ink bg-ink px-2 py-0.5 font-medium text-paper">
+                ✓ {c}
+              </span>
+            ) : (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onPick(c)}
+                className="font-medium text-accent underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent"
+              >
+                {multi ? `+ ${c}` : c}
+              </button>
+            ),
+          )}
         </p>
       )}
     </div>

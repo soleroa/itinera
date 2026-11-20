@@ -1,5 +1,14 @@
+/** One city of the trip and the nights spent there. */
+export interface TripStop {
+  city: string;
+  nights: number;
+}
+
 export interface TripRequest {
+  /** First city (the headline); the full route is in `stops`. */
   destination: string;
+  /** Cities in visiting order; the nights add up to the whole trip. At least one. */
+  stops: TripStop[];
   origin: string;
   /** Departure date, YYYY-MM-DD. */
   departure: string;
@@ -45,8 +54,9 @@ export type Choice<T> = T & { recommended: boolean };
 export interface TripOption {
   level: OptionLevel;
   flight: Flight;
-  accommodation: Accommodation;
-  /** Flight + accommodation, in USD. */
+  /** One stay per stop of the trip, in order. */
+  accommodations: Accommodation[];
+  /** Flight + every stay, in USD. */
   total: number;
 }
 
@@ -54,6 +64,7 @@ export interface Alternative {
   change: string;
   departure: string;
   returnDate: string;
+  stops: TripStop[];
   option: TripOption;
 }
 
@@ -64,7 +75,8 @@ export interface TripOptionsResponse {
   shortfall?: number;
   alternatives?: Alternative[];
   flights: Choice<Flight>[];
-  stays: Choice<Accommodation>[];
+  /** Per stop, the stays to choose from. */
+  stays: Choice<Accommodation>[][];
   recommendationReason: string;
   notice: string;
 }
@@ -112,4 +124,11 @@ export interface Itinerary {
   hotel: Place;
   days: ItineraryDay[];
   unresolved: string[];
+}
+
+/** How to get from one city of the trip to the next. */
+export interface Transfer {
+  from: string;
+  to: string;
+  leg: Leg | null;
 }

@@ -1,3 +1,4 @@
+import { tripTitle } from '../lib/format';
 import { useEffect, useState } from 'react';
 import type { TripRequest } from '../types';
 import { Eyebrow } from './Layout';
@@ -21,7 +22,7 @@ export function TripLoading({ trip }: { trip: TripRequest }) {
     <div className="animate-rise flex flex-col gap-10 py-16 sm:py-24">
       <Eyebrow>Planning</Eyebrow>
       <h2 className="display max-w-4xl text-6xl sm:text-8xl">
-        {trip.origin} <span className="text-accent">→</span> {trip.destination}
+        {trip.origin} <span className="text-accent">→</span> {tripTitle(trip)}
       </h2>
 
       <div className="max-w-xl">

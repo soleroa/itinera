@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ItineraryPlanner } from './components/ItineraryPlanner';
+import { TripItineraries } from './components/ItineraryPlanner';
 import { Footer, Header, Ticker } from './components/Layout';
 import { TripLoading } from './components/TripLoading';
 import { TripOptions } from './components/TripOptions';
@@ -78,18 +78,21 @@ export default function App() {
           <SavedTrips
             trips={saved.trips}
             onOpen={openSaved}
-            onDelete={saved.remove}
+            onDelete={(id) => {
+              track('saved_trip_deleted');
+              saved.remove(id);
+            }}
             onNew={reset}
           />
         )}
         {phase.name === 'chosen' && (
           <TripChosen trip={phase.trip} option={phase.option} onReset={showTrips} resetLabel="← My trips">
-            <ItineraryPlanner
+            <TripItineraries
               key={phase.id}
               trip={phase.trip}
               option={phase.option}
-              saved={saved.trips.find((t) => t.id === phase.id)}
-              onSave={(state) => saved.update(phase.id, state)}
+              plan={saved.trips.find((t) => t.id === phase.id)?.plan}
+              onSave={(index, state) => saved.updateStop(phase.id, index, state)}
             />
           </TripChosen>
         )}

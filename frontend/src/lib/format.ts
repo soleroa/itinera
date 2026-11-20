@@ -46,3 +46,8 @@ export function formatDuration(minutes: number): string {
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** The route of a trip as a short title: "Rome · Florence · Venice". */
+export function tripTitle(trip: { stops: { city: string }[] }): string {
+  return trip.stops.map((s) => s.city).join(' · ');
+}

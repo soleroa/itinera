@@ -26,7 +26,13 @@ for the agent) — see `.env.example`.
 Optional: set `VITE_POSTHOG_KEY` (and `VITE_POSTHOG_HOST` if you use the EU region
 or self-hosting) in `.env`. Without a key nothing is sent. Pageviews and the
 events `trip_submitted`, `trip_plan_succeeded`, `trip_plan_failed` and
-`trip_option_chosen` are captured; destination, origin and dates are not sent.
+`trip_option_chosen`, `saved_trip_opened`, `saved_trip_deleted`, `places_suggested`,
+`place_added`, `itinerary_requested`, `itinerary_built` and `itinerary_failed` are captured;
+destination, origin and dates are not sent.
+
+The backend also reports each request (`backend_request`: route, duration, outcome) and 5xx errors
+as exceptions, joined to the same person via the `X-PostHog-Distinct-Id` header. Enable it with
+`POSTHOG_KEY` / `POSTHOG_HOST` in `backend/.env` (see `backend/.env.example`).
 
 ## Design
 

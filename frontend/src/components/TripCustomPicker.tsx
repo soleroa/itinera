@@ -14,21 +14,28 @@ function plain<T>(item: Choice<T>): T {
 export function TripCustomPicker({
   flights,
   stays,
+  cities,
   reason,
   maxBudget,
   onChoose,
 }: {
   flights: Choice<Flight>[];
-  stays: Choice<Accommodation>[];
+  /** One list of stays per city of the trip. */
+  stays: Choice<Accommodation>[][];
+  /** City of each list in `stays`. */
+  cities: string[];
   reason: string;
   maxBudget: number | null;
   onChoose: (option: TripOption) => void;
 }) {
   const [flightIdx, setFlightIdx] = useState(Math.max(0, flights.findIndex((f) => f.recommended)));
-  const [stayIdx, setStayIdx] = useState(Math.max(0, stays.findIndex((s) => s.recommended)));
+  const [stayIdx, setStayIdx] = useState<number[]>(() =>
+    stays.map((list) => Math.max(0, list.findIndex((s) => s.recommended))),
+  );
   const flight = flights[flightIdx];
-  const stay = stays[stayIdx];
-  const total = flight.totalPrice + stay.totalPrice;
+  const chosenStays = stays.map((list, i) => list[stayIdx[i]]);
+  const total = flight.totalPrice + chosenStays.reduce((sum, s) => sum + s.totalPrice, 0);
+  const multi = stays.length > 1;
 
   return (
     <section className="flex flex-col gap-8">
@@ -36,12 +43,12 @@ export function TripCustomPicker({
         <Eyebrow>Mix and match</Eyebrow>
         <h2 className="display text-5xl sm:text-6xl">Pick your own flight and stay.</h2>
         <p className="max-w-2xl text-ink-2">
-          Our recommendation is preselected: <b>{reason.toLowerCase()}</b>. Change either one and the total updates.
+          Our recommendation is preselected: <b>{reason.toLowerCase()}</b>. Change anything and the total updates.
         </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <ChoiceList title="Flights" count={flights.length}>
+        <ChoiceList title={multi ? 'Flights (in and out)' : 'Flights'} count={flights.length}>
           {flights.map((f, i) => (
             <ChoiceItem
               key={`${f.airline}-${f.outboundDeparture}-${f.totalPrice}-${i}`}
@@ -51,24 +58,28 @@ export function TripCustomPicker({
               onSelect={() => setFlightIdx(i)}
               label={`${f.airline}, ${formatDate(f.outboundDeparture.slice(0, 10))}`}
             >
-              <FlightRow flight={f} />
+              <FlightRow flight={f} priceLabel={multi ? 'in and out' : 'round trip'} />
             </ChoiceItem>
           ))}
         </ChoiceList>
-        <ChoiceList title="Stays" count={stays.length}>
-          {stays.map((s, i) => (
-            <ChoiceItem
-              key={`${s.name}-${s.totalPrice}-${i}`}
-              selected={i === stayIdx}
-              recommended={s.recommended}
-              price={s.totalPrice}
-              onSelect={() => setStayIdx(i)}
-              label={s.name}
-            >
-              <StayRow stay={s} />
-            </ChoiceItem>
+        <div className="flex flex-col gap-8">
+          {stays.map((list, c) => (
+            <ChoiceList key={cities[c] ?? c} title={multi ? `Stays in ${cities[c]}` : 'Stays'} count={list.length}>
+              {list.map((s, i) => (
+                <ChoiceItem
+                  key={`${s.name}-${s.totalPrice}-${i}`}
+                  selected={i === stayIdx[c]}
+                  recommended={s.recommended}
+                  price={s.totalPrice}
+                  onSelect={() => setStayIdx((prev) => prev.map((v, k) => (k === c ? i : v)))}
+                  label={s.name}
+                >
+                  <StayRow stay={s} />
+                </ChoiceItem>
+              ))}
+            </ChoiceList>
           ))}
-        </ChoiceList>
+        </div>
       </div>
 
       <div className="hard-shadow sticky bottom-4 z-10 grid gap-4 border border-ink bg-card p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-8">
@@ -79,7 +90,7 @@ export function TripCustomPicker({
         <BudgetMeter total={total} max={maxBudget} />
         <button
           onClick={() =>
-            onChoose({ level: 'custom', flight: plain(flight), accommodation: plain(stay), total })
+            onChoose({ level: 'custom', flight: plain(flight), accommodations: chosenStays.map(plain), total })
           }
           className="bg-ink px-6 py-4 font-display text-xl font-semibold tracking-tight text-paper transition hover:bg-accent hover:text-on-accent"
         >

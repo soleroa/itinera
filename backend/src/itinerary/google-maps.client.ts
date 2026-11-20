@@ -207,6 +207,8 @@ export class GoogleMapsClient {
     from: LatLng,
     to: LatLng,
     mode: TravelMode,
+    /** ISO time to plan the trip for. By default Google plans for right now, so at night transit is scarce. */
+    departureTime?: string,
   ): Promise<Route | null> {
     const waypoint = (p: LatLng) => ({
       location: { latLng: { latitude: p.lat, longitude: p.lng } },
@@ -226,6 +228,8 @@ export class GoogleMapsClient {
         destination: waypoint(to),
         travelMode: mode,
         languageCode: 'en',
+        // Only transit and driving-with-traffic accept a departure time; walking does not.
+        ...(departureTime && mode !== 'WALK' ? { departureTime } : {}),
       }),
     });
     if (!response.ok) {

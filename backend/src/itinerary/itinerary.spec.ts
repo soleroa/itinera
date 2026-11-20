@@ -111,6 +111,16 @@ describe('ItineraryService.build', () => {
     assert.equal(result.days[0].stops[0].leg?.minutes, 12);
   });
 
+  it('never walks between cities: transit first, then driving', async () => {
+    const transit = new ItineraryService(fakeMaps(places, (mode) => route(mode, 180)));
+    assert.equal((await transit.transfer('Hotel', 'Lake')).leg?.mode, 'TRANSIT');
+
+    const noTransit = new ItineraryService(
+      fakeMaps(places, (mode) => (mode === 'TRANSIT' ? null : route(mode, 90))),
+    );
+    assert.equal((await noTransit.transfer('Hotel', 'Lake')).leg?.mode, 'DRIVE');
+  });
+
   it('leaves the leg null instead of inventing one when no route exists', async () => {
     const service = new ItineraryService(fakeMaps(places, () => null));
     const result = await service.build({ destination: 'City', hotel: 'Hotel', days: 1, places: ['Museum'] });

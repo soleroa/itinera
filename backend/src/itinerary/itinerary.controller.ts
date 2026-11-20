@@ -31,6 +31,15 @@ export class ItineraryController {
     };
   }
 
+  /** How to travel between two cities of a multi-city trip (train/bus, else driving). */
+  @Post('transfer')
+  transfer(@Body() body: { from?: string; to?: string }) {
+    if (!body.from?.trim() || !body.to?.trim()) {
+      throw new BadRequestException('from and to are required.');
+    }
+    return this.itinerary.transfer(body.from.trim(), body.to.trim());
+  }
+
   /** Day-by-day itinerary for a chosen hotel and list of places. */
   @Post('itinerary')
   build(@Body() body: Partial<ItineraryRequest>) {

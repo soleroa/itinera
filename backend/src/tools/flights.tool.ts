@@ -11,12 +11,18 @@ import {
   searchAirports,
 } from 'fli-js';
 import { JsonSchemaObject, Tool } from '../common/tool.interface';
+import { INTERNATIONAL_AIRPORTS } from './airports';
 
 interface FlightsInput {
   origin: string;
   destination: string;
   departureDate: string;
   returnDate?: string;
+  /**
+   * Open-jaw trips: the city the return flight leaves from, when it is not the destination.
+   * The outbound and the return are then searched as two one-way flights and added up.
+   */
+  returnFrom?: string;
   passengers?: number;
   maxTotalPrice?: number;
   /** Internal (not in the LLM schema): result cap, default 5. */
@@ -122,13 +128,16 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
       { currency: 'USD', language: 'en', country: 'US' },
     );
 
-    const results = await this.search(
-      origins,
-      destinations,
-      input.departureDate,
-      input.returnDate,
-      passengers,
-    );
+    const openJaw = Boolean(input.returnFrom && input.returnDate);
+    const results = openJaw
+      ? null
+      : await this.search(
+          origins,
+          destinations,
+          input.departureDate,
+          input.returnDate,
+          passengers,
+        );
 
     const flights =
       results !== null
@@ -146,6 +155,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
             destinations,
             passengers,
             link,
+            openJaw ? this.resolveAirports(input.returnFrom!) : destinations,
           );
 
     return {
@@ -171,6 +181,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
     destinations: Airport[],
     passengers: number,
     link: string,
+    returnFrom: Airport[] = destinations,
   ): Promise<Flight[]> {
     const outbound = input.returnDate
       ? await this.search(
@@ -183,7 +194,7 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
       : null;
     const inbound = input.returnDate
       ? await this.search(
-          destinations,
+          returnFrom,
           origins,
           input.returnDate,
           null,
@@ -284,8 +295,10 @@ export class FlightsTool implements Tool<FlightsInput, FlightsOutput> {
 
   /** A city with several airports (e.g. Buenos Aires) is searched across all of them. */
   private resolveAirports(place: string): Airport[] {
-    const argentine = ARGENTINE_AIRPORTS[this.normalize(place)];
-    if (argentine) return argentine as Airport[];
+    const known =
+      ARGENTINE_AIRPORTS[this.normalize(place)] ??
+      INTERNATIONAL_AIRPORTS[this.normalize(place)];
+    if (known) return known as Airport[];
 
     const matches = searchAirports(place, 5);
     if (matches.length === 0) {

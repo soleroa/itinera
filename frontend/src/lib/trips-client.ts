@@ -1,3 +1,4 @@
+import { analyticsHeaders } from './analytics';
 import type { TripOptionsResponse, TripRequest } from '../types';
 
 const API_URL = import.meta.env.VITE_TRIPS_URL ?? '/trips/options';
@@ -10,10 +11,11 @@ export async function fetchTripOptions(
 ): Promise<TripOptionsResponse> {
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...analyticsHeaders() },
     body: JSON.stringify({
       origin: trip.origin,
       destination: trip.destination,
+      stops: trip.stops,
       departure: trip.departure,
       returnDate: trip.returnDate,
       travelers: trip.travelers,

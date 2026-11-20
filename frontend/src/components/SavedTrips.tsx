@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SavedTrip } from '../lib/saved-trips';
-import { formatDateRange, formatUsd, nightsBetween, plural } from '../lib/format';
+import { formatDateRange, formatUsd, nightsBetween, plural, tripTitle } from '../lib/format';
 import { Eyebrow } from './Layout';
 
 export function SavedTrips({
@@ -63,9 +63,12 @@ function SavedTripCard({
   onDelete: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const { trip, option, itinerary } = saved;
+  const { trip, option } = saved;
   const nights = nightsBetween(trip.departure, trip.returnDate);
-  const placeCount = saved.places?.length ?? 0;
+  const built = saved.plan.filter((p) => p.itinerary).length;
+  const itinerary = built > 0 && built === saved.plan.length;
+  const placeCount = saved.plan.reduce((sum, p) => sum + (p.places?.length ?? 0), 0);
+  const days = saved.plan.reduce((sum, p) => sum + (p.itinerary?.days.length ?? 0), 0);
 
   return (
     <li
@@ -84,13 +87,13 @@ function SavedTripCard({
       </header>
 
       <button onClick={onOpen} className="flex flex-1 flex-col gap-3 px-5 py-5 text-left transition hover:bg-paper">
-        <p className="display text-5xl">{trip.destination}</p>
+        <p className={`display ${trip.stops.length > 1 ? 'text-4xl' : 'text-5xl'}`}>{tripTitle(trip)}</p>
         <p className="label normal-case tracking-normal">
           From {trip.origin} · {plural(nights, 'night')} · {plural(trip.travelers, 'traveler')}
         </p>
         <p className="font-mono text-sm text-ink-3">
           {formatUsd(option.total)} flight + stay ·{' '}
-          {itinerary ? plural(itinerary.days.length, 'day') + ' planned' : plural(placeCount, 'place') + ' picked'}
+          {itinerary ? plural(days, 'day') + ' planned' : plural(placeCount, 'place') + ' picked'}
         </p>
       </button>
 
@@ -119,7 +122,7 @@ function SavedTripCard({
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            aria-label={`Delete trip to ${trip.destination}`}
+            aria-label={`Delete trip to ${tripTitle(trip)}`}
             className="px-5 py-3 font-mono text-xs font-medium uppercase tracking-widest text-ink-3 transition hover:text-ink"
           >
             Delete

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useDestinationPhoto } from '../lib/destination-photo';
-import { formatDateRange, formatUsd, plural, splitDateTime } from '../lib/format';
+import { formatDateRange, formatUsd, plural, splitDateTime, tripTitle } from '../lib/format';
 import type { Accommodation, Flight, TripRequest } from '../types';
 
 /** Destination plate: a duotone Wikipedia photo (solid cobalt without one), name set huge on top. */
@@ -21,13 +21,19 @@ export function DestinationBanner({ trip, compact = false }: { trip: TripRequest
             referrerPolicy="no-referrer"
           />
         )}
-        <h1 className="display relative z-10 p-5 text-6xl text-white sm:p-8 sm:text-9xl">{trip.destination}</h1>
+        <h1
+          className={`display relative z-10 p-5 text-white sm:p-8 ${
+            trip.stops.length > 1 ? 'text-5xl sm:text-7xl' : 'text-6xl sm:text-9xl'
+          }`}
+        >
+          {tripTitle(trip)}
+        </h1>
         {photo && (
           <span className="label absolute right-3 top-3 z-10 bg-black/40 px-2 py-1 text-white/80">Photo: Wikipedia</span>
         )}
       </div>
       <dl className="grid grid-cols-2 gap-px border-t border-ink bg-line sm:grid-cols-4">
-        <Meta label="Route" value={`${trip.origin} → ${trip.destination}`} wide />
+        <Meta label="Route" value={`${trip.origin} → ${tripTitle(trip)}`} wide />
         <Meta label="Dates" value={formatDateRange(trip.departure, trip.returnDate)} />
         <Meta label="Travelers" value={String(trip.travelers)} />
         <Meta label="Budget" value={trip.maxBudget !== null ? formatUsd(trip.maxBudget) : 'Open'} wide />
@@ -110,7 +116,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Compact flight rows for the option cards. */
-export function FlightRow({ flight }: { flight: Flight }) {
+export function FlightRow({ flight, priceLabel = 'round trip' }: { flight: Flight; priceLabel?: string }) {
   const dep = splitDateTime(flight.outboundDeparture);
   const arr = splitDateTime(flight.outboundArrival);
   return (
@@ -121,7 +127,7 @@ export function FlightRow({ flight }: { flight: Flight }) {
       <p className="font-mono text-sm text-ink-2">
         {dep.date} {dep.time} → {arr.time}
       </p>
-      <p className="font-mono text-sm text-ink-3">{formatUsd(flight.totalPrice)} round trip</p>
+      <p className="font-mono text-sm text-ink-3">{formatUsd(flight.totalPrice)} {priceLabel}</p>
       <span className="pt-1">
         <ExternalLink href={flight.link}>Book flight</ExternalLink>
       </span>
@@ -129,10 +135,10 @@ export function FlightRow({ flight }: { flight: Flight }) {
   );
 }
 
-export function StayRow({ stay }: { stay: Accommodation }) {
+export function StayRow({ stay, label = 'Stay' }: { stay: Accommodation; label?: string }) {
   const details = [stay.category, stay.rating ? `${stay.rating}/5` : null].filter(Boolean).join(' · ');
   return (
-    <Row label="Stay">
+    <Row label={label}>
       <p className="font-medium">{stay.name}</p>
       {details && <p className="text-sm text-ink-2">{details}</p>}
       <p className="font-mono text-sm text-ink-3">
@@ -173,7 +179,9 @@ export function FlightPass({ flight, trip }: { flight: Flight; trip: TripRequest
         <div>
           <p className="label">Fare</p>
           <p className="font-display text-4xl font-semibold tabular-nums">{formatUsd(flight.totalPrice)}</p>
-          <p className="label normal-case tracking-normal">round trip, all travelers</p>
+          <p className="label normal-case tracking-normal">
+            {trip.stops.length > 1 ? 'in and out' : 'round trip'}, all travelers
+          </p>
         </div>
         <div className="flex flex-col gap-3">
           <div className="barcode" aria-hidden="true" />
@@ -194,14 +202,14 @@ function Time({ time, place, date, align = 'left' }: { time: string; place: stri
   );
 }
 
-export function StayCard({ stay, travelers }: { stay: Accommodation; travelers: number }) {
+export function StayCard({ stay, travelers, city }: { stay: Accommodation; travelers: number; city?: string }) {
   const details = [stay.type === 'hotel' ? 'Hotel' : 'Rental', stay.category, stay.rating ? `${stay.rating}/5` : null]
     .filter(Boolean)
     .join(' · ');
   return (
     <article className="grid gap-4 border border-ink bg-card p-6 sm:grid-cols-[1fr_auto] sm:items-end">
       <div>
-        <p className="label">Your stay</p>
+        <p className="label">{city ? `Your stay in ${city}` : 'Your stay'}</p>
         <p className="display mt-2 text-4xl sm:text-5xl">{stay.name}</p>
         <p className="mt-2 text-ink-2">{details}</p>
       </div>

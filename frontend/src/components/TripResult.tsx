@@ -32,7 +32,9 @@ export function TripChosen({
       <section id="trip-details" className="flex scroll-mt-6 flex-col gap-8 border-t-2 border-ink pt-10">
         <div className="flex flex-col gap-4">
           <Eyebrow>Getting there</Eyebrow>
-          <h2 className="display max-w-3xl text-5xl sm:text-7xl">Your flight and stay.</h2>
+          <h2 className="display max-w-3xl text-5xl sm:text-7xl">
+            {trip.stops.length > 1 ? 'Your flight and stays.' : 'Your flight and stay.'}
+          </h2>
         </div>
         <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
           <section className="hard-shadow flex flex-col gap-5 self-start border border-ink bg-card p-6">
@@ -42,7 +44,13 @@ export function TripChosen({
             </div>
             <dl className="flex flex-col gap-2 font-mono text-sm">
               <Line label="Flight" amount={option.flight.totalPrice} />
-              <Line label="Stay" amount={option.accommodation.totalPrice} />
+              {option.accommodations.map((stay, i) => (
+                <Line
+                  key={`${stay.name}-${i}`}
+                  label={trip.stops.length > 1 ? `Stay · ${trip.stops[i]?.city}` : 'Stay'}
+                  amount={stay.totalPrice}
+                />
+              ))}
             </dl>
             <div className="flex items-end justify-between border-t-2 border-ink pt-4">
               <span className="label text-ink">Total</span>
@@ -56,7 +64,14 @@ export function TripChosen({
 
           <div className="flex flex-col gap-6">
             <FlightPass flight={option.flight} trip={trip} />
-            <StayCard stay={option.accommodation} travelers={trip.travelers} />
+            {option.accommodations.map((stay, i) => (
+              <StayCard
+                key={`${stay.name}-${i}`}
+                stay={stay}
+                travelers={trip.travelers}
+                city={trip.stops.length > 1 ? trip.stops[i]?.city : undefined}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -90,9 +105,12 @@ function TripStrip({ trip, option, nights }: { trip: TripRequest; option: TripOp
       </div>
       <div className="bg-card px-5 py-4">
         <p className="label">Stay</p>
-        <p className="font-medium">{option.accommodation.name}</p>
+        <p className="font-medium">{option.accommodations.map((a) => a.name).join(' · ')}</p>
         <p className="font-mono text-sm text-ink-3">
-          {formatUsd(option.accommodation.pricePerNight)}/night · {plural(trip.travelers, 'traveler')}
+          {option.accommodations.length > 1
+            ? `${plural(option.accommodations.length, 'stay')}`
+            : `${formatUsd(option.accommodations[0].pricePerNight)}/night`}{' '}
+          · {plural(trip.travelers, 'traveler')}
         </p>
       </div>
       <a

@@ -11,6 +11,12 @@ export function initAnalytics() {
   });
 }
 
+/** Headers that tie backend events to this browser's PostHog person. */
+export function analyticsHeaders(): Record<string, string> {
+  if (!enabled) return {};
+  return { 'X-PostHog-Distinct-Id': posthog.get_distinct_id() };
+}
+
 export function track(event: string, properties?: Record<string, unknown>) {
   if (!enabled) return;
   posthog.capture(event, properties);

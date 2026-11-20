@@ -23,6 +23,15 @@ much and suggests cheaper variants.
 - The destination and origin fields are search boxes with suggestions from Google Places,
   like a flight search. Typing a country (e.g. "Italia") is accepted, but since flights and
   daily routes need a city, it offers popular cities (Rome, Florence...) to pick from.
+- **Multi-city trips** (up to 4 cities, e.g. Rome → Florence → Venice): pick a country and
+  it suggests its main cities, or search any city. You set the nights in each one (split
+  evenly by default). Flights go **into the first city and out of the last** (priced as two
+  one-way searches), each city gets its own stay, and the way between cities (train/bus,
+  else driving) comes from Google Routes. Transfers are shown but **not** in the budget.
+- Offers up to 8 flights and 8 stays per city to mix and match, with one recommended in
+  each list, computed in code (best quality for the price within your budget).
+- Shows the options even when over budget, and saves every trip in a **My trips** panel
+  (stored in your browser only).
 - Searches round-trip flights (Google Flights) and accommodation (Google Hotels,
   via SerpApi) with real prices.
 - Verifies in code that flight + accommodation fit your USD budget, and offers up to
@@ -115,6 +124,9 @@ curl -X POST http://localhost:3001/trips/options \
   }'
 ```
 
+For several cities, send `stops` instead (the nights must add up to the trip length):
+`"stops": [{"city": "Rome", "nights": 4}, {"city": "Florence", "nights": 3}]`.
+
 The response includes `status` (`ok` or `over_budget`), the `options` with their
 USD total and, when over budget, `shortfall` and `alternatives`. All amounts are
 in USD.
@@ -146,8 +158,9 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
   roughly 20–25 Google Routes calls; there is no caching or per-user limit yet.
 - **Transit coverage.** Google has no public transport data in some cities; those
   legs fall back to walking or driving and are labelled as such.
-- **Airports:** the most searched Argentine cities are resolved by hand; anything
-  else relies on fli-js's airport search. The suggestions box passes only the city name
+- **Airports:** the most searched Argentine cities and the main international ones
+  (`backend/src/tools/airports.ts`) are resolved by hand; anything else relies on fli-js's
+  airport search, which confuses namesakes (it finds Athens, Georgia for "Athens"). The suggestions box passes only the city name
   on, so a homonymous city abroad (e.g. Córdoba, Spain) can resolve to the Argentine one.
 
 ## Roadmap

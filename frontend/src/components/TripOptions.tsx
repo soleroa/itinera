@@ -1,10 +1,10 @@
-import type { Alternative, OptionLevel, TripOption, TripOptionsResponse, TripRequest } from '../types';
+import type { Alternative, OptionLevel, TripOption, TripOptionsResponse, TripRequest, TripStop } from '../types';
 import { formatDateRange, formatUsd } from '../lib/format';
 import { Eyebrow } from './Layout';
 import { TripCustomPicker } from './TripCustomPicker';
 import { BudgetMeter, DestinationBanner, FlightRow, StayRow } from './TripParts';
 
-type Dates = { departure: string; returnDate: string };
+type Dates = { departure: string; returnDate: string; stops: TripStop[] };
 
 const LEVELS: Record<OptionLevel, { title: string; hint: string }> = {
   cheapest: { title: 'Cheapest', hint: 'The lowest total price' },
@@ -73,6 +73,7 @@ export function TripOptions({
               key={option.level}
               index={i + 1}
               option={option}
+              cities={trip.stops.map((s) => s.city)}
               maxBudget={trip.maxBudget}
               title={LEVELS[option.level].title}
               hint={overBudget ? OVER_HINTS[option.level] : LEVELS[option.level].hint}
@@ -88,6 +89,7 @@ export function TripOptions({
         <TripCustomPicker
           flights={data.flights}
           stays={data.stays}
+          cities={trip.stops.map((s) => s.city)}
           reason={data.recommendationReason}
           maxBudget={trip.maxBudget}
           onChoose={(option) => onChoose(option)}
@@ -112,6 +114,7 @@ export function TripOptions({
                   key={alt.change}
                   index={i + 1}
                   option={alt.option}
+                  cities={alt.stops.map((s) => s.city)}
                   maxBudget={trip.maxBudget}
                   title={alt.change}
                   hint={formatDateRange(alt.departure, alt.returnDate)}
@@ -138,12 +141,13 @@ export function TripOptions({
 }
 
 function datesOf(alt: Alternative): Dates {
-  return { departure: alt.departure, returnDate: alt.returnDate };
+  return { departure: alt.departure, returnDate: alt.returnDate, stops: alt.stops };
 }
 
 function OptionCard({
   index,
   option,
+  cities,
   maxBudget,
   title,
   hint,
@@ -153,6 +157,8 @@ function OptionCard({
 }: {
   index: number;
   option: TripOption;
+  /** City of each stay, in order. */
+  cities: string[];
   maxBudget: number | null;
   title: string;
   hint: string;
@@ -185,8 +191,14 @@ function OptionCard({
       </div>
 
       <div className="mt-6 flex-1 border-t border-line px-5 pt-5">
-        <FlightRow flight={option.flight} />
-        <StayRow stay={option.accommodation} />
+        <FlightRow flight={option.flight} priceLabel={cities.length > 1 ? 'in and out' : 'round trip'} />
+        {option.accommodations.map((stay, i) => (
+          <StayRow
+            key={`${stay.name}-${i}`}
+            stay={stay}
+            label={cities.length > 1 ? `Stay · ${cities[i]}` : 'Stay'}
+          />
+        ))}
       </div>
 
       <button

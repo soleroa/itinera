@@ -19,6 +19,7 @@
     "@nestjs/platform-express": "^11.1.28",
     "dotenv": "^17.4.2",
     "fli-js": "file:vendor/fli-js",
+    "posthog-node": "^6.0.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },

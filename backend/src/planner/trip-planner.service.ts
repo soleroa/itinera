@@ -11,9 +11,18 @@ import {
 import type { Accommodation } from '../tools/accommodation.tool';
 import type { Flight } from '../tools/flights.tool';
 
+/** One city of the trip and how many nights are spent there. */
+export interface TripStop {
+  city: string;
+  nights: number;
+}
+
 export interface TripRequest {
   origin: string;
+  /** First city of the trip (kept for single-city trips and as the headline). */
   destination: string;
+  /** Cities in visiting order; the nights add up to the whole trip. Always at least one. */
+  stops: TripStop[];
   /** Departure date, YYYY-MM-DD. */
   departure: string;
   /** Return date, YYYY-MM-DD. */
@@ -27,6 +36,8 @@ export interface Alternative {
   change: string;
   departure: string;
   returnDate: string;
+  /** The nights per city of this variant. */
+  stops: TripStop[];
   option: Combination;
 }
 
@@ -41,8 +52,8 @@ export interface TripOptions {
   alternatives?: Alternative[];
   /** More flights to choose from, with one recommended. Mix and match with `stays`. */
   flights: Choice<Flight>[];
-  /** More stays to choose from, with one recommended. */
-  stays: Choice<Accommodation>[];
+  /** Per stop of the trip, more stays to choose from, with one recommended each. */
+  stays: Choice<Accommodation>[][];
   /** Why the recommended flight + stay were picked. */
   recommendationReason: string;
   /** What the budget does NOT cover. */
@@ -52,6 +63,7 @@ export interface TripOptions {
 /** Cap on extra searches (each costs one flights call and one hotels call). */
 const MAX_ALTERNATIVE_ATTEMPTS = 3;
 const CANDIDATES = 15;
+const MAX_STOPS = 4;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NOTICE =
   'The budget was checked against flight + accommodation only. Food, tickets and local transport are not included.';
@@ -66,8 +78,9 @@ export class TripPlannerService {
   ) {}
 
   validate(body: Partial<TripRequest>): TripRequest {
-    const { origin, destination, departure, returnDate, travelers, maxBudget } =
-      body;
+    const { origin, departure, returnDate, travelers, maxBudget } = body;
+    const rawStops = Array.isArray(body.stops) ? body.stops : [];
+    const destination = rawStops.length > 0 ? rawStops[0]?.city : body.destination;
     if (!origin?.trim() || !destination?.trim()) {
       throw new BadRequestException('origin and destination are required.');
     }
@@ -91,9 +104,11 @@ export class TripPlannerService {
     ) {
       throw new BadRequestException('maxBudget must be a positive number.');
     }
+    const stops = this.validateStops(rawStops, destination, departure, returnDate);
     return {
       origin: origin.trim(),
-      destination: destination.trim(),
+      destination: stops[0].city,
+      stops,
       departure,
       returnDate,
       travelers: travelers!,
@@ -101,30 +116,70 @@ export class TripPlannerService {
     };
   }
 
-  /** Every flight, stay and combination (in USD) for a request; combinations cheapest first. */
+  /** A single city takes every night; several cities must split the trip's nights exactly. */
+  private validateStops(
+    raw: Array<Partial<TripStop>>,
+    destination: string,
+    departure: string,
+    returnDate: string,
+  ): TripStop[] {
+    const total = daysBetween(departure, returnDate);
+    if (raw.length === 0) return [{ city: destination.trim(), nights: total }];
+    if (raw.length > MAX_STOPS) {
+      throw new BadRequestException(`A trip can have at most ${MAX_STOPS} cities.`);
+    }
+    const stops = raw.map((stop) => {
+      if (
+        typeof stop?.city !== 'string' ||
+        !stop.city.trim() ||
+        !Number.isInteger(stop.nights) ||
+        stop.nights! < 1
+      ) {
+        throw new BadRequestException(
+          'Each stop needs a city and a whole number of nights, at least 1.',
+        );
+      }
+      return { city: stop.city.trim(), nights: stop.nights! };
+    });
+    const nights = stops.reduce((sum, s) => sum + s.nights, 0);
+    if (nights !== total) {
+      throw new BadRequestException(
+        `The nights per city (${nights}) must add up to the trip length (${total}).`,
+      );
+    }
+    return stops;
+  }
+
+  /** Every flight, stays per city and combination (in USD) for a request; combinations cheapest first. */
   private async candidates(req: TripRequest) {
-    const [flights, stays] = await Promise.all([
+    const last = req.stops[req.stops.length - 1];
+    const dates = stopDates(req);
+    const [flights, ...stays] = await Promise.all([
       this.flights.execute({
         origin: req.origin,
-        destination: req.destination,
+        destination: req.stops[0].city,
         departureDate: req.departure,
         returnDate: req.returnDate,
+        // Several cities: fly into the first, out of the last (open-jaw).
+        returnFrom: req.stops.length > 1 ? last.city : undefined,
         passengers: req.travelers,
         maxResults: CANDIDATES,
       }),
-      this.accommodation.execute({
-        city: req.destination,
-        checkIn: req.departure,
-        checkOut: req.returnDate,
-        guests: req.travelers,
-        maxResults: CANDIDATES,
-      }),
+      ...dates.map((d) =>
+        this.accommodation.execute({
+          city: d.city,
+          checkIn: d.checkIn,
+          checkOut: d.checkOut,
+          guests: req.travelers,
+          maxResults: CANDIDATES,
+        }),
+      ),
     ]);
 
     // All math is done in USD, which is what the APIs return; it is verified here, not by an LLM.
     const usd = (m: { currency: string }) => m.currency === 'USD';
     const usdFlights = flights.flights.filter(usd);
-    const usdStays = stays.accommodations.filter(usd);
+    const usdStays = stays.map((s) => s.accommodations.filter(usd));
     return {
       flights: usdFlights,
       stays: usdStays,
@@ -167,29 +222,25 @@ export class TripPlannerService {
   ): Promise<Alternative[]> {
     const nights = daysBetween(req.departure, req.returnDate);
     const today = new Date().toISOString().slice(0, 10);
-    const variants: Array<{
-      change: string;
-      departure: string;
-      returnDate: string;
-    }> = [];
-    if (nights >= 2) {
-      variants.push({
-        change: 'One night fewer',
-        departure: req.departure,
-        returnDate: addDays(req.returnDate, -1),
-      });
-    }
-    if (nights >= 3) {
-      variants.push({
-        change: 'Two nights fewer',
-        departure: req.departure,
-        returnDate: addDays(req.returnDate, -2),
-      });
+    const last = req.stops[req.stops.length - 1];
+    const fewer = (n: number) => ({
+      change: n === 1 ? 'One night fewer' : 'Two nights fewer',
+      departure: req.departure,
+      returnDate: addDays(req.returnDate, -n),
+      // The nights are taken off the last city.
+      stops: [...req.stops.slice(0, -1), { ...last, nights: last.nights - n }],
+    });
+    const variants: Array<Omit<Alternative, 'option'>> = [];
+    // Several cities cost more searches (one stay search per city), so only the date shift is tried.
+    if (req.stops.length === 1) {
+      if (nights >= 2) variants.push(fewer(1));
+      if (nights >= 3) variants.push(fewer(2));
     }
     variants.push({
       change: 'Travel one week later',
       departure: addDays(req.departure, 7),
       returnDate: addDays(req.returnDate, 7),
+      stops: req.stops,
     });
 
     const attempts = variants
@@ -211,6 +262,19 @@ export class TripPlannerService {
     );
     return results.filter((a): a is Alternative => a !== null);
   }
+}
+
+/** Check-in and check-out of every stop, in order, from the departure date and the nights per city. */
+export function stopDates(
+  req: Pick<TripRequest, 'departure' | 'stops'>,
+): Array<{ city: string; checkIn: string; checkOut: string }> {
+  let checkIn = req.departure;
+  return req.stops.map((stop) => {
+    const checkOut = addDays(checkIn, stop.nights);
+    const dates = { city: stop.city, checkIn, checkOut };
+    checkIn = checkOut;
+    return dates;
+  });
 }
 
 function daysBetween(from: string, to: string): number {
