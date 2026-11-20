@@ -1,7 +1,15 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AccommodationTool } from '../tools/accommodation.tool';
 import { FlightsTool } from '../tools/flights.tool';
-import { allCombinations, Combination, pickOptions } from './combinations';
+import {
+  allCombinations,
+  buildChoices,
+  Choice,
+  Combination,
+  pickOptions,
+} from './combinations';
+import type { Accommodation } from '../tools/accommodation.tool';
+import type { Flight } from '../tools/flights.tool';
 
 export interface TripRequest {
   origin: string;
@@ -31,6 +39,12 @@ export interface TripOptions {
   shortfall?: number;
   /** Only when over budget: variants of dates/nights that do fit, with their cheapest option. */
   alternatives?: Alternative[];
+  /** More flights to choose from, with one recommended. Mix and match with `stays`. */
+  flights: Choice<Flight>[];
+  /** More stays to choose from, with one recommended. */
+  stays: Choice<Accommodation>[];
+  /** Why the recommended flight + stay were picked. */
+  recommendationReason: string;
   /** What the budget does NOT cover. */
   notice: string;
 }
@@ -87,7 +101,7 @@ export class TripPlannerService {
     };
   }
 
-  /** Every combination (in USD) for a request, cheapest first. */
+  /** Every flight, stay and combination (in USD) for a request; combinations cheapest first. */
   private async candidates(req: TripRequest) {
     const [flights, stays] = await Promise.all([
       this.flights.execute({
@@ -109,25 +123,30 @@ export class TripPlannerService {
 
     // All math is done in USD, which is what the APIs return; it is verified here, not by an LLM.
     const usd = (m: { currency: string }) => m.currency === 'USD';
-    return allCombinations(
-      flights.flights.filter(usd),
-      stays.accommodations.filter(usd),
-    );
+    const usdFlights = flights.flights.filter(usd);
+    const usdStays = stays.accommodations.filter(usd);
+    return {
+      flights: usdFlights,
+      stays: usdStays,
+      pairs: allCombinations(usdFlights, usdStays),
+    };
   }
 
   async options(req: TripRequest): Promise<TripOptions> {
-    const candidates = await this.candidates(req);
-    if (candidates.length === 0) {
+    const { flights, stays, pairs: candidates } = await this.candidates(req);
+    const choices = buildChoices(flights, stays, req.maxBudget);
+    if (!choices) {
       throw new Error('No flights and accommodations with prices to combine.');
     }
 
     const options = pickOptions(candidates, req.maxBudget);
     if (options.length > 0) {
-      return { status: 'ok', options, notice: NOTICE };
+      return { status: 'ok', options, ...choices, notice: NOTICE };
     }
 
     const cheapest: Combination = { level: 'cheapest', ...candidates[0] };
     return {
+      ...choices,
       status: 'over_budget',
       // Still shown so the user can choose anyway; each one exceeds the budget.
       options: pickOptions(candidates, null),
@@ -179,8 +198,8 @@ export class TripPlannerService {
     const results = await Promise.all(
       attempts.map(async (v): Promise<Alternative | null> => {
         try {
-          const found = await this.candidates({ ...req, ...v });
-          const [best] = pickOptions(found, maxBudget);
+          const { pairs } = await this.candidates({ ...req, ...v });
+          const [best] = pickOptions(pairs, maxBudget);
           return best ? { ...v, option: best } : null;
         } catch (error) {
           this.logger.warn(

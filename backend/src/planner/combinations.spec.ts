@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Accommodation } from '../tools/accommodation.tool';
 import type { Flight } from '../tools/flights.tool';
-import { allCombinations, pickOptions, quality } from './combinations';
+import { allCombinations, buildChoices, CHOICES_SHOWN, pickOptions, quality } from './combinations';
 
 const flight = (totalPrice: number, stops = 0): Flight => ({
   airline: 'Test Air',
@@ -121,5 +121,43 @@ describe('pickOptions', () => {
     const options = pickOptions(allCombinations([flight(100)], [hotel(100)]), null);
     assert.equal(options.length, 1);
     assert.equal(options[0].level, 'cheapest');
+  });
+});
+
+describe('buildChoices', () => {
+  const flights = Array.from({ length: 12 }, (_, i) => flight(500 + i * 50, i % 3));
+  const hotels = Array.from({ length: 12 }, (_, i) => hotel(400 + i * 100, 3 + (i % 3) * 0.6, `${3 + (i % 3)}-star hotel`));
+
+  it('offers a capped list with exactly one recommended flight and stay', () => {
+    const c = buildChoices(flights, hotels, 3000)!;
+    assert.equal(c.flights.length, CHOICES_SHOWN);
+    assert.equal(c.stays.length, CHOICES_SHOWN);
+    assert.equal(c.flights.filter((f) => f.recommended).length, 1);
+    assert.equal(c.stays.filter((s) => s.recommended).length, 1);
+    assert.match(c.recommendationReason, /within your budget/);
+  });
+
+  it('recommends a pair that fits the budget', () => {
+    const c = buildChoices(flights, hotels, 1500)!;
+    const f = c.flights.find((x) => x.recommended)!;
+    const s = c.stays.find((x) => x.recommended)!;
+    assert.ok(f.totalPrice + s.totalPrice <= 1500);
+  });
+
+  it('recommends the cheapest pair when nothing fits', () => {
+    const c = buildChoices(flights, hotels, 100)!;
+    assert.equal(c.flights.find((x) => x.recommended)!.totalPrice, 500);
+    assert.equal(c.stays.find((x) => x.recommended)!.totalPrice, 400);
+    assert.match(c.recommendationReason, /over your budget/);
+  });
+
+  it('keeps the recommendation in the list even when it is not among the cheapest', () => {
+    const c = buildChoices(flights, hotels, null)!;
+    assert.ok(c.flights.some((x) => x.recommended));
+    assert.ok(c.stays.some((x) => x.recommended));
+  });
+
+  it('returns null with nothing to combine', () => {
+    assert.equal(buildChoices([], hotels, 1000), null);
   });
 });

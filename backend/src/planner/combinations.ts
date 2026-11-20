@@ -74,3 +74,52 @@ export function pickOptions(
     pick('best', (a, b) => b.quality - a.quality || a.total - b.total),
   ].filter((c): c is Combination => c !== null);
 }
+
+export type Choice<T> = T & { recommended: boolean };
+
+export interface Choices {
+  /** Flights to pick from, cheapest first; exactly one is marked `recommended`. */
+  flights: Choice<Flight>[];
+  /** Stays to pick from, cheapest first; exactly one is marked `recommended`. */
+  stays: Choice<Accommodation>[];
+  /** Why the recommended pair was chosen. */
+  recommendationReason: string;
+}
+
+/** How many flights and stays are offered for the user to choose from. */
+export const CHOICES_SHOWN = 8;
+
+/**
+ * The flights and stays to offer, plus a recommended pair computed in code: the best
+ * quality-for-price pair that fits the budget, or the cheapest pair when none fits.
+ * Returns null if there is nothing to combine.
+ */
+export function buildChoices(
+  flights: Flight[],
+  hotels: Accommodation[],
+  maxBudget: number | null,
+): Choices | null {
+  const pairs = allCombinations(flights, hotels);
+  if (pairs.length === 0) return null;
+
+  const fits = pickOptions(pairs, maxBudget);
+  const balanced = fits.find((o) => o.level === 'balanced') ?? fits[0];
+  const recommended = balanced ?? pairs[0];
+  const reason = balanced
+    ? 'Best quality for the price within your budget'
+    : 'The cheapest pair we found, still over your budget';
+
+  const shown = <T extends { totalPrice: number }>(items: T[], pick: T): Choice<T>[] => {
+    const byPrice = [...new Set(items)].sort((a, b) => a.totalPrice - b.totalPrice);
+    const top = byPrice.slice(0, CHOICES_SHOWN);
+    if (!top.includes(pick)) top[top.length - 1] = pick;
+    top.sort((a, b) => a.totalPrice - b.totalPrice);
+    return top.map((item) => ({ ...item, recommended: item === pick }));
+  };
+
+  return {
+    flights: shown(flights, recommended.flight),
+    stays: shown(hotels, recommended.accommodation),
+    recommendationReason: reason,
+  };
+}

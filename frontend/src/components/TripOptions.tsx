@@ -1,6 +1,7 @@
 import type { Alternative, OptionLevel, TripOption, TripOptionsResponse, TripRequest } from '../types';
 import { formatDateRange, formatUsd } from '../lib/format';
 import { Eyebrow } from './Layout';
+import { TripCustomPicker } from './TripCustomPicker';
 import { BudgetMeter, DestinationBanner, FlightRow, StayRow } from './TripParts';
 
 type Dates = { departure: string; returnDate: string };
@@ -9,12 +10,14 @@ const LEVELS: Record<OptionLevel, { title: string; hint: string }> = {
   cheapest: { title: 'Cheapest', hint: 'The lowest total price' },
   balanced: { title: 'Balanced', hint: 'Best quality for the price' },
   best: { title: 'Best', hint: 'Top quality in budget' },
+  custom: { title: 'Custom', hint: 'Your own mix' },
 };
 
 const OVER_HINTS: Record<OptionLevel, string> = {
   cheapest: 'The lowest total price',
   balanced: 'Best quality for the price',
   best: 'Top quality, highest price',
+  custom: 'Your own mix',
 };
 
 export function TripOptions({
@@ -79,6 +82,16 @@ export function TripOptions({
             />
           ))}
         </div>
+      )}
+
+      {data.flights?.length > 0 && data.stays?.length > 0 && (
+        <TripCustomPicker
+          flights={data.flights}
+          stays={data.stays}
+          reason={data.recommendationReason}
+          maxBudget={trip.maxBudget}
+          onChoose={(option) => onChoose(option)}
+        />
       )}
 
       {overBudget && (

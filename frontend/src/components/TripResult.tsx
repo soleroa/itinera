@@ -4,7 +4,7 @@ import { formatUsd, nightsBetween, plural, splitDateTime } from '../lib/format';
 import { Eyebrow } from './Layout';
 import { BudgetMeter, DestinationBanner, FlightPass, StayCard } from './TripParts';
 
-const LEVEL_LABEL = { cheapest: 'Cheapest', balanced: 'Balanced', best: 'Best' } as const;
+const LEVEL_LABEL = { cheapest: 'Cheapest', balanced: 'Balanced', best: 'Best', custom: 'Custom' } as const;
 
 /** The trip the traveler picked: the itinerary comes first; flight, stay and receipt follow. */
 export function TripChosen({

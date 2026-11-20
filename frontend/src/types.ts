@@ -37,7 +37,10 @@ export interface AgentResponse {
   accommodations: Accommodation[];
 }
 
-export type OptionLevel = 'cheapest' | 'balanced' | 'best';
+export type OptionLevel = 'cheapest' | 'balanced' | 'best' | 'custom';
+
+/** A flight or stay offered for choosing; `recommended` marks our pick. */
+export type Choice<T> = T & { recommended: boolean };
 
 export interface TripOption {
   level: OptionLevel;
@@ -60,6 +63,9 @@ export interface TripOptionsResponse {
   cheapest?: TripOption;
   shortfall?: number;
   alternatives?: Alternative[];
+  flights: Choice<Flight>[];
+  stays: Choice<Accommodation>[];
+  recommendationReason: string;
   notice: string;
 }
 
