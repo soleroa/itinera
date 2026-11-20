@@ -100,6 +100,17 @@ describe('ItineraryService.build', () => {
     assert.equal(b.days[0].stops[0].leg?.mode, 'DRIVE');
   });
 
+  it('drives instead of walking when the walk is longer than the leg limit', async () => {
+    const service = new ItineraryService(
+      fakeMaps(places, (mode) =>
+        mode === 'TRANSIT' ? null : route(mode, mode === 'WALK' ? MAX_LEG_MINUTES + 60 : 12),
+      ),
+    );
+    const result = await service.build({ destination: 'City', hotel: 'Hotel', days: 1, places: ['Museum'] });
+    assert.equal(result.days[0].stops[0].leg?.mode, 'DRIVE');
+    assert.equal(result.days[0].stops[0].leg?.minutes, 12);
+  });
+
   it('leaves the leg null instead of inventing one when no route exists', async () => {
     const service = new ItineraryService(fakeMaps(places, () => null));
     const result = await service.build({ destination: 'City', hotel: 'Hotel', days: 1, places: ['Museum'] });

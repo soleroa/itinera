@@ -139,27 +139,37 @@ export class ItineraryService {
     };
   }
 
-  /** Public transport first; if Google has none, walking, then driving. Never invented. */
+  /**
+   * Public transport first; if Google has none, walking, or driving when the walk is longer
+   * than MAX_LEG_MINUTES (and driving is actually faster). Never invented.
+   */
   private async leg(from: Place, to: Place): Promise<Leg | null> {
-    for (const mode of ['TRANSIT', 'WALK', 'DRIVE'] as const) {
-      try {
-        const route = await this.maps.route(from, to, mode);
-        if (route) {
-          return {
-            from: from.name,
-            mode,
-            transitAvailable: mode === 'TRANSIT',
-            minutes: Math.max(1, Math.round(route.seconds / 60)),
-            meters: route.meters,
-            steps: route.steps,
-          };
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Route ${from.name} → ${to.name} (${mode}) failed: ${error instanceof Error ? error.message : error}`,
-        );
-      }
+    const transit = await this.tryLeg(from, to, 'TRANSIT');
+    if (transit) return transit;
+    const walk = await this.tryLeg(from, to, 'WALK');
+    if (walk && walk.minutes <= MAX_LEG_MINUTES) return walk;
+    const drive = await this.tryLeg(from, to, 'DRIVE');
+    if (drive && (!walk || drive.minutes < walk.minutes)) return drive;
+    return walk;
+  }
+
+  private async tryLeg(from: Place, to: Place, mode: TravelMode): Promise<Leg | null> {
+    try {
+      const route = await this.maps.route(from, to, mode);
+      if (!route) return null;
+      return {
+        from: from.name,
+        mode,
+        transitAvailable: mode === 'TRANSIT',
+        minutes: Math.max(1, Math.round(route.seconds / 60)),
+        meters: route.meters,
+        steps: route.steps,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Route ${from.name} → ${to.name} (${mode}) failed: ${error instanceof Error ? error.message : error}`,
+      );
+      return null;
     }
-    return null;
   }
 }
