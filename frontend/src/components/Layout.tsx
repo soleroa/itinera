@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export function Header({ onHome }: { onHome?: () => void }) {
+export function Header({ onHome, onTrips, tripCount = 0 }: { onHome?: () => void; onTrips?: () => void; tripCount?: number }) {
   return (
     <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
       <button onClick={onHome} className="group flex items-baseline gap-2" aria-label="Itinera, start over">
@@ -9,7 +9,17 @@ export function Header({ onHome }: { onHome?: () => void }) {
         </span>
         <span className="display text-3xl">Itinera</span>
       </button>
-      <span className="label hidden sm:block">Real prices · Real routes</span>
+      <div className="flex items-center gap-5">
+        <span className="label hidden sm:block">Real prices · Real routes</span>
+        {onTrips && (
+          <button
+            onClick={onTrips}
+            className="border border-ink px-4 py-2 font-mono text-xs font-medium uppercase tracking-widest transition hover:bg-ink hover:text-paper"
+          >
+            My trips{tripCount > 0 ? ` (${tripCount})` : ''}
+          </button>
+        )}
+      </div>
     </header>
   );
 }

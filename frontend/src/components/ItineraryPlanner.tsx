@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { buildItinerary, ItineraryError, suggestPlaces } from '../lib/itinerary-client';
 import { formatDuration, nightsBetween, plural } from '../lib/format';
@@ -19,27 +19,57 @@ function messageOf(error: unknown): string {
   return error instanceof ItineraryError ? error.message : 'Could not reach the backend.';
 }
 
-export function ItineraryPlanner({ trip, option }: { trip: TripRequest; option: TripOption }) {
-  const [places, setPlaces] = useState<string[]>([]);
+export function ItineraryPlanner({
+  trip,
+  option,
+  saved,
+  onSave,
+}: {
+  trip: TripRequest;
+  option: TripOption;
+  /** Work restored from a saved trip. */
+  saved?: { places: string[] | null; itinerary: Itinerary | null };
+  /** Called whenever the places or the built itinerary change, so they can be stored. */
+  onSave?: (state: { places: string[]; itinerary: Itinerary | null }) => void;
+}) {
+  const [places, setPlaces] = useState<string[]>(saved?.places ?? []);
   const [draft, setDraft] = useState('');
-  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(saved?.places == null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [itinerary, setItinerary] = useState<Itinerary | null>(null);
+  const [itinerary, setItinerary] = useState<Itinerary | null>(saved?.itinerary ?? null);
+  const [suggestionsReady, setSuggestionsReady] = useState(saved?.places != null);
 
   const days = nightsBetween(trip.departure, trip.returnDate);
 
   useEffect(() => {
+    if (saved?.places != null) return; // restored from a saved trip: keep the user's list
     let cancelled = false;
     suggestPlaces(trip.destination)
-      .then((suggested) => !cancelled && setPlaces(suggested.map((p) => p.name)))
+      .then((suggested) => {
+        if (cancelled) return;
+        setPlaces(suggested.map((p) => p.name));
+        setSuggestionsReady(true);
+      })
       .catch((err) => !cancelled && setSuggestionError(messageOf(err)))
       .finally(() => !cancelled && setLoadingSuggestions(false));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.destination]);
+
+  // Persist the user's work. Skipped until suggestions loaded, so a draft is never saved half-empty.
+  const restored = useRef(saved != null);
+  useEffect(() => {
+    if (restored.current) {
+      restored.current = false; // just opened a saved trip: nothing changed yet
+      return;
+    }
+    if (suggestionsReady || places.length > 0 || itinerary) onSave?.({ places, itinerary });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places, itinerary, suggestionsReady]);
 
   const addPlace = (e: FormEvent) => {
     e.preventDefault();

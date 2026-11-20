@@ -5,7 +5,9 @@ import { TripLoading } from './components/TripLoading';
 import { TripOptions } from './components/TripOptions';
 import { TripChosen, TripError } from './components/TripResult';
 import { TripForm } from './components/TripForm';
+import { SavedTrips } from './components/SavedTrips';
 import { track } from './lib/analytics';
+import { useSavedTrips } from './lib/saved-trips';
 import { fetchTripOptions, TripsError } from './lib/trips-client';
 import type { TripOption, TripOptionsResponse, TripRequest } from './types';
 
@@ -13,12 +15,25 @@ type Phase =
   | { name: 'planning' }
   | { name: 'loading'; trip: TripRequest }
   | { name: 'options'; trip: TripRequest; data: TripOptionsResponse }
-  | { name: 'chosen'; trip: TripRequest; option: TripOption }
+  | { name: 'dashboard' }
+  | { name: 'chosen'; id: string; trip: TripRequest; option: TripOption }
   | { name: 'error'; trip: TripRequest; error: string };
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>({ name: 'planning' });
+  const saved = useSavedTrips();
   const reset = () => setPhase({ name: 'planning' });
+  const showTrips = () => {
+    window.scrollTo({ top: 0 });
+    setPhase({ name: 'dashboard' });
+  };
+  const openSaved = (id: string) => {
+    const found = saved.trips.find((t) => t.id === id);
+    if (!found) return;
+    track('saved_trip_opened');
+    window.scrollTo({ top: 0 });
+    setPhase({ name: 'chosen', id, trip: found.trip, option: found.option });
+  };
 
   const handleSubmit = async (trip: TripRequest) => {
     setPhase({ name: 'loading', trip });
@@ -40,7 +55,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <Header onHome={reset} />
+      <Header onHome={reset} onTrips={showTrips} tripCount={saved.trips.length} />
       <Ticker />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-8 pt-8 sm:px-8">
@@ -53,14 +68,29 @@ export default function App() {
             onChoose={(option, dates) => {
               track('trip_option_chosen', { level: option.level });
               window.scrollTo({ top: 0 });
-              setPhase({ name: 'chosen', trip: { ...phase.trip, ...dates }, option });
+              const trip = { ...phase.trip, ...dates };
+              setPhase({ name: 'chosen', id: saved.create(trip, option), trip, option });
             }}
             onReset={reset}
           />
         )}
+        {phase.name === 'dashboard' && (
+          <SavedTrips
+            trips={saved.trips}
+            onOpen={openSaved}
+            onDelete={saved.remove}
+            onNew={reset}
+          />
+        )}
         {phase.name === 'chosen' && (
-          <TripChosen trip={phase.trip} option={phase.option} onReset={reset}>
-            <ItineraryPlanner trip={phase.trip} option={phase.option} />
+          <TripChosen trip={phase.trip} option={phase.option} onReset={showTrips} resetLabel="← My trips">
+            <ItineraryPlanner
+              key={phase.id}
+              trip={phase.trip}
+              option={phase.option}
+              saved={saved.trips.find((t) => t.id === phase.id)}
+              onSave={(state) => saved.update(phase.id, state)}
+            />
           </TripChosen>
         )}
         {phase.name === 'error' && <TripError error={phase.error} onReset={reset} />}

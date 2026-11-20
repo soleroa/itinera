@@ -11,11 +11,13 @@ export function TripChosen({
   trip,
   option,
   onReset,
+  resetLabel = '← New itinerary',
   children,
 }: {
   trip: TripRequest;
   option: TripOption;
   onReset: () => void;
+  resetLabel?: string;
   children?: ReactNode;
 }) {
   const nights = nightsBetween(trip.departure, trip.returnDate);
@@ -64,7 +66,7 @@ export function TripChosen({
           onClick={onReset}
           className="border border-ink px-5 py-2.5 font-mono text-xs font-medium uppercase tracking-widest transition hover:bg-ink hover:text-paper"
         >
-          ← New itinerary
+          {resetLabel}
         </button>
       </div>
     </div>
