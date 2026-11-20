@@ -11,6 +11,12 @@ const LEVELS: Record<OptionLevel, { title: string; hint: string }> = {
   best: { title: 'Best', hint: 'Top quality in budget' },
 };
 
+const OVER_HINTS: Record<OptionLevel, string> = {
+  cheapest: 'The lowest total price',
+  balanced: 'Best quality for the price',
+  best: 'Top quality, highest price',
+};
+
 export function TripOptions({
   trip,
   data,
@@ -36,8 +42,8 @@ export function TripOptions({
             <p className="display text-7xl tabular-nums sm:text-9xl">{formatUsd(data.shortfall)}</p>
           </div>
           <p className="max-w-xl text-lg">
-            The cheapest flight + stay we found totals <b>{formatUsd(data.cheapest.total)}</b>. Raise your budget, or try
-            one of the nearby variants below.
+            The cheapest flight + stay we found totals <b>{formatUsd(data.cheapest.total)}</b>. You can still pick one of
+            the options below, raise your budget, or try a nearby variant.
           </p>
         </section>
       ) : (
@@ -50,6 +56,13 @@ export function TripOptions({
         </section>
       )}
 
+      {overBudget && data.options.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <Eyebrow>Over your budget</Eyebrow>
+          <h2 className="display text-5xl sm:text-6xl">The closest we found.</h2>
+        </div>
+      )}
+
       {data.options.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-3">
           {data.options.map((option, i) => (
@@ -59,8 +72,8 @@ export function TripOptions({
               option={option}
               maxBudget={trip.maxBudget}
               title={LEVELS[option.level].title}
-              hint={LEVELS[option.level].hint}
-              featured={option.level === 'balanced'}
+              hint={overBudget ? OVER_HINTS[option.level] : LEVELS[option.level].hint}
+              featured={!overBudget && option.level === 'balanced'}
               delay={i * 90}
               onChoose={() => onChoose(option)}
             />
@@ -72,7 +85,7 @@ export function TripOptions({
         <section className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">
             <Eyebrow>Nearby alternatives</Eyebrow>
-            <h2 className="display text-5xl sm:text-6xl">Cheaper ways to make it work.</h2>
+            <h2 className="display text-5xl sm:text-6xl">Ways to fit your budget.</h2>
           </div>
           {alternatives.length === 0 ? (
             <p className="border border-ink bg-card p-6 text-ink-2">

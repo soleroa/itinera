@@ -24,6 +24,7 @@ export interface Alternative {
 
 export interface TripOptions {
   status: 'ok' | 'over_budget';
+  /** Within budget when `ok`; the closest picks (all above the budget) when `over_budget`. */
   options: Combination[];
   /** Only when over budget: the cheapest combination and how much the budget falls short (USD). */
   cheapest?: Combination;
@@ -128,7 +129,8 @@ export class TripPlannerService {
     const cheapest: Combination = { level: 'cheapest', ...candidates[0] };
     return {
       status: 'over_budget',
-      options: [],
+      // Still shown so the user can choose anyway; each one exceeds the budget.
+      options: pickOptions(candidates, null),
       cheapest,
       shortfall: cheapest.total - req.maxBudget!,
       alternatives: await this.alternatives(req, req.maxBudget!),
