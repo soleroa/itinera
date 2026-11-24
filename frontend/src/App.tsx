@@ -114,7 +114,8 @@ function Landing({ onSubmit }: { onSubmit: (trip: TripRequest) => void }) {
   return (
     <div className="flex flex-col gap-12 pb-10 pt-4 lg:gap-16 lg:pt-8">
       <h1 className="display animate-rise max-w-5xl text-[clamp(3.5rem,10.5vw,9.5rem)]">
-        Your trip, planned{' '}
+        {/* relative: paints above the next line's highlight, which would otherwise clip the comma's tail */}
+        <span className="relative">Your trip, planned</span>{' '}
         <span className="bg-mark px-2 text-black [box-decoration-break:clone]">day by day.</span>
       </h1>
 
