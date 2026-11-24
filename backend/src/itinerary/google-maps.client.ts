@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { LatLng } from './geo';
+import { selectAttractions } from './attractions';
 
 export interface Place extends LatLng {
   id: string;
@@ -7,6 +8,9 @@ export interface Place extends LatLng {
   address: string;
   /** Google place types, e.g. "tourist_attraction" or "locality". */
   types: string[];
+  /** Guest rating out of 5 and how many reviews it rests on; only requested for attractions. */
+  rating?: number;
+  ratingCount?: number;
 }
 
 export interface CitySuggestion {
@@ -45,6 +49,8 @@ interface PlacesResponse {
     displayName?: { text: string };
     formattedAddress?: string;
     types?: string[];
+    rating?: number;
+    userRatingCount?: number;
     location?: { latitude: number; longitude: number };
   }>;
 }
@@ -95,12 +101,12 @@ const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 /** Google Places (New) and Routes APIs: https://developers.google.com/maps */
 @Injectable()
 export class GoogleMapsClient {
-  private placesHeaders() {
+  private placesHeaders(extraFields = '') {
     return {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': this.apiKey(),
       'X-Goog-FieldMask':
-        'places.id,places.displayName,places.formattedAddress,places.types,places.location',
+        'places.id,places.displayName,places.formattedAddress,places.types,places.location' + extraFields,
     };
   }
 
@@ -186,20 +192,25 @@ export class GoogleMapsClient {
   async topAttractions(destination: string, count: number): Promise<Place[]> {
     const response = await fetch(PLACES_URL, {
       method: 'POST',
-      headers: this.placesHeaders(),
+      // Ratings are billed at a higher Places tier, so they are only requested here, once per suggestion.
+      headers: this.placesHeaders(',places.rating,places.userRatingCount'),
       body: JSON.stringify({
         textQuery: `top tourist attractions in ${destination}`,
         includedType: 'tourist_attraction',
-        pageSize: count,
+        // Ask for extra so filtering out repeats and weak places still leaves enough.
+        pageSize: Math.min(20, count * 2),
         languageCode: 'en',
       }),
     });
     if (!response.ok) {
       throw new Error(`Google Places responded ${response.status}`);
     }
-    return (((await response.json()) as PlacesResponse).places ?? [])
-      .filter((p) => p.location)
-      .map((p) => toPlace(p, destination));
+    return selectAttractions(
+      (((await response.json()) as PlacesResponse).places ?? [])
+        .filter((p) => p.location)
+        .map((p) => toPlace(p, destination)),
+      count,
+    );
   }
 
   /** A route between two points, or null when Google has none for that travel mode. */
@@ -282,6 +293,7 @@ function toPlace(place: ApiPlace, fallbackName: string): Place {
     types: place.types ?? [],
     lat: place.location!.latitude,
     lng: place.location!.longitude,
+    ...(place.rating != null ? { rating: place.rating, ratingCount: place.userRatingCount ?? 0 } : {}),
   };
 }
 
