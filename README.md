@@ -4,25 +4,30 @@ Itinerary planner. Tell it where you are going, when and with what budget, and i
 the whole trip **day by day**: the places to see, in a sensible order, and exactly how to
 get between them. It also finds **real flights and a hotel** that fit your budget in USD.
 
-Enter an origin, destination, dates, number of travelers and a budget. Itinera returns up
-to three flight + accommodation combinations (cheapest, balanced and best); you pick one,
-and it builds the itinerary from your hotel. If the budget falls short, it tells you by how
-much and suggests cheaper variants.
+Enter an origin, one or several destination cities, dates, number of travelers and a budget.
+Itinera returns up to three flight + accommodation combinations (cheapest, balanced and
+best), plus lists of flights and stays to mix and match; you pick, and it builds the
+itinerary from your hotel in each city. If the budget falls short, it still shows the
+closest options, tells you by how much you are over and suggests cheaper variants.
 
-> **Status:** work in progress. Budget-aware combination search and the
-> day-by-day itinerary are implemented. The itinerary has been run against the live
-> Google APIs for Bariloche and Mendoza only (see the [Roadmap](#roadmap)).
+> **Status:** work in progress. Budget-aware combination search, multi-city trips and the
+> day-by-day itinerary are implemented. They have been run against the live APIs for a
+> handful of destinations only (Bariloche, Mendoza, Rosario, Ushuaia and a Rome → Florence →
+> Venice trip); see the [Roadmap](#roadmap).
 
 ## What it does today
 
 - Builds a **day-by-day itinerary**: places are suggested from Google Places'
-  top-rated attractions for the destination (or typed by you), grouped by proximity
+  top-rated attractions for the destination (or typed by you). Suggestions are filtered
+  in code: no agencies or stations, rating of 4.0+ with at least 50 reviews, and no repeats
+  of the same spot. They are grouped by proximity
   into days, and ordered starting from your hotel. Each leg shows how to get there by
   public transport (Google Routes), falling back to walking or driving when there is
   no transit data. A place far from the rest is accepted but flagged with a warning.
 - The destination and origin fields are search boxes with suggestions from Google Places,
   like a flight search. Typing a country (e.g. "Italia") is accepted, but since flights and
-  daily routes need a city, it offers popular cities (Rome, Florence...) to pick from.
+  daily routes need a city, it offers its main cities (Rome, Florence...) to add, from a
+  fixed list (about 30 countries; for any other, search the cities yourself).
 - **Multi-city trips** (up to 4 cities, e.g. Rome → Florence → Venice): pick a country and
   it suggests its main cities, or search any city. You set the nights in each one (split
   evenly by default). Flights go **into the first city and out of the last** (priced as two
@@ -38,7 +43,8 @@ much and suggests cheaper variants.
   three combinations: **cheapest**, **balanced** (best quality-to-price ratio) and
   **best** (highest quality within the budget).
 - If the budget falls short: reports the shortfall and tries alternatives (one or
-  two fewer nights, or traveling one week later), capped at 3 extra searches.
+  two fewer nights, or traveling one week later), capped at 3 extra searches. With several
+  cities only "one week later" is tried, since each attempt needs one stay search per city.
 - Always states that the budget covers **flight and accommodation only**: food,
   tickets and local transport are not included.
 
@@ -46,16 +52,17 @@ much and suggests cheaper variants.
 
 ```
 Form (React)
-   │  POST /trips/options  { origin, destination, departure, returnDate, travelers, maxBudget }
+   │  POST /trips/options  { origin, destination, stops?, departure, returnDate, travelers, maxBudget }
    ▼
 TripPlannerService (NestJS, no LLM)
    ├─ FlightsTool        → Google Flights (fli-js)      ┐ in parallel
-   ├─ AccommodationTool  → Google Hotels (SerpApi)      ┘
-   └─ combinations.ts    → builds flight+hotel pairs, filters by budget,
-                           picks cheapest / balanced / best
+   ├─ AccommodationTool  → Google Hotels (SerpApi), one  ┘ search per city
+   └─ combinations.ts    → builds flight + one-stay-per-city combinations, filters by
+                           budget, picks cheapest / balanced / best and a recommendation
 
 Chosen option → POST /trips/places/suggest   (Google Places' top attractions)
-              → POST /trips/itinerary        (code clusters and orders; Google Routes times each leg)
+              → POST /trips/itinerary        (per city: code clusters and orders; Google Routes times each leg)
+              → POST /trips/transfer         (between cities: train/bus, else driving)
 ```
 
 **Core design decision:** anything verifiable is computed by code, not by a
@@ -139,6 +146,7 @@ Backend variables (`backend/.env`):
 |---|---|---|---|
 | `SERPAPI_KEY` | Yes | — | Accommodation search |
 | `GOOGLE_MAPS_API_KEY` | For itineraries | — | Google Places + Routes |
+| `POSTHOG_KEY` / `POSTHOG_HOST` | No | — / `https://us.i.posthog.com` | Server analytics; off without a key |
 | `PORT` | No | `3001` | Server port |
 | `SERPAPI_BASE_URL` | No | `https://serpapi.com/search.json` | SerpApi endpoint |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | `http://localhost:11434` / `qwen3:8b` | `/agent` only |
@@ -154,6 +162,12 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
   break if Google changes its format, and its use may not be allowed by Google's
   terms of service: this is a personal/educational project, not meant for
   commercial production use.
+- **Several cities.** The return flight is the cheapest one found (you choose the outbound
+  one), and the price is two one-way searches added up. Transfers between cities are shown
+  but not in the budget, and are planned for a daytime departure tomorrow, so real
+  schedules may differ.
+- **Saved trips live in your browser** (localStorage): they do not follow you to another
+  device and disappear if you clear the site's data.
 - **Cost per search.** SerpApi limits searches per plan, and one itinerary makes
   roughly 20–25 Google Routes calls; there is no caching or per-user limit yet.
 - **Transit coverage.** Google has no public transport data in some cities; those
@@ -168,7 +182,8 @@ point at another backend, and `VITE_POSTHOG_KEY` for analytics. See
 - [x] Day-by-day itinerary with proximity clustering and nearest-neighbor ordering in code.
 - [x] Local transport with Google Routes (`TRANSIT`), falling back to walking or driving.
 - [ ] Verify the itinerary against the live Google APIs in more cities, including ones
-  with poor public transport coverage.
+  with poor public transport coverage, and multi-city trips outside Italy.
+- [ ] Accounts and a database, so saved trips are not tied to one browser.
 - [ ] Caching of Places/Routes results and per-user limits to control costs.
 
 ## License

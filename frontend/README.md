@@ -54,21 +54,24 @@ are shown in a cobalt duotone, or as solid cobalt when there is none. Animations
 
 ```
 src/
-├── App.tsx                    → screen phase (planning / loading / options / chosen / error) and the landing
+├── App.tsx                    → screen phase (planning / loading / options / chosen / dashboard / error) and the landing
 ├── components/
 │   ├── Layout.tsx             → header, departure-board ticker, footer and section label
-│   ├── TripForm.tsx           → the search as one numbered sheet
-│   ├── PlaceSearch.tsx        → search box with Google Places suggestions (combobox, keyboard support); a country or region offers popular cities instead
+│   ├── TripForm.tsx           → the search as one numbered sheet; one or several cities with nights per city
+│   ├── PlaceSearch.tsx        → search box with Google Places suggestions (combobox, keyboard support); a country or region offers its popular cities to add one by one
 │   ├── TripLoading.tsx        → marching rule and status messages while searching
-│   ├── TripOptions.tsx        → three fare cards, tick budget meters and cheaper alternatives
+│   ├── TripOptions.tsx        → three fare cards (also when over budget), tick budget meters and cheaper alternatives
+│   ├── TripCustomPicker.tsx   → mix and match: lists of flights and stays per city, with the recommended ones preselected
+│   ├── SavedTrips.tsx         → the "My trips" panel
 │   ├── TripResult.tsx         → chosen trip receipt and the error state
 │   ├── TripParts.tsx          → duotone destination plate, budget meter, boarding-pass flight and stay cards
-│   ├── ItineraryPlanner.tsx   → editable place list and the day-by-day timeline with giant day numerals
+│   ├── ItineraryPlanner.tsx   → per city: editable place list and the day-by-day timeline; transfers between cities
 │   └── Icons.tsx              → inline SVG icons
 ├── lib/
 │   ├── analytics.ts           → PostHog init and track() helper
 │   ├── trips-client.ts        → fetch to POST /trips/options
-│   ├── itinerary-client.ts    → fetch to /trips/places/suggest and /trips/itinerary
+│   ├── itinerary-client.ts    → fetch to /trips/places/suggest, /trips/transfer and /trips/itinerary
+│   ├── saved-trips.ts         → saved trips in localStorage (with migration of the older single-city format)
 │   ├── places-client.ts       → fetch to /trips/places/autocomplete
 │   ├── popular-cities.ts      → short fixed list of well-known cities per country/region
 │   ├── agent-client.ts        → fetch to POST /agent (ReAct agent, currently unused in the UI)

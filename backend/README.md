@@ -30,8 +30,8 @@ prices from the APIs. All amounts are in USD.
 
 | File | Responsibility |
 |---|---|
-| `trip-planner.service.ts` | Validates the request, searches flights and hotels in parallel and decides the status (`ok` / `over_budget`). When over budget it tries up to 3 alternatives (one or two fewer nights, one week later) |
-| `combinations.ts` | Pure functions: every flight+hotel pair, and selection of **cheapest** (lowest total), **balanced** (best quality/price) and **best** (highest quality). Quality = hotel rating + 0.3 × stars − 0.5 × stops |
+| `trip-planner.service.ts` | Validates the request (one destination or several `stops` whose nights add up to the trip), searches flights and one hotel list per city in parallel and decides the status (`ok` / `over_budget`). With several cities the flights are open-jaw: into the first city, out of the last. When over budget it still returns the closest options, and tries up to 3 alternatives (one or two fewer nights, one week later; only the week shift with several cities) |
+| `combinations.ts` | Pure functions: every flight + one-stay-per-city combination, selection of **cheapest** (lowest total), **balanced** (best quality/price) and **best** (highest quality), and `buildChoices`: the lists of flights and stays offered (8 each) with one recommended in each. Quality = average stay quality (rating + 0.3 × stars) − 0.5 × stops |
 | `planner.controller.ts` | `POST /trips/options` |
 
 The planner reuses `FlightsTool` and `AccommodationTool` by calling them directly
@@ -49,8 +49,9 @@ as bus stops, so suggestions now come straight from Google's ranking.)
 | `geo.ts` | Pure functions: haversine distance, `clusterIntoDays` (deterministic k-means with a per-day capacity) and `nearestNeighborOrder` |
 | `google-maps.client.ts` | Google Places (New) text search and Routes `computeRoutes`. Places often ranks a different place first (e.g. "Cerro Catedral, Bariloche" returned Cerro Leon), so it asks for 5 results and `pickBestMatch` chooses the one whose name matches |
 | `place-suggester.service.ts` | Suggests a destination's top-rated tourist attractions from Google Places |
-| `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK`, then `DRIVE`; legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented |
-| `itinerary.controller.ts` | `GET /trips/places/autocomplete?q=` (suggestions for the destination and origin fields: cities, regions and countries, each with a `kind`; biased toward Argentina but not restricted to it), `POST /trips/places/suggest`, `POST /trips/itinerary` |
+| `attractions.ts` | Pure `selectAttractions`: drops agencies and stations, places rated under 4.0 or with fewer than 50 reviews, and repeats of the same spot; keeps Google's order |
+| `itinerary.service.ts` | Locates the hotel and places, splits them into days, orders each day from the hotel and times every leg. Tries `TRANSIT`, then `WALK` (or `DRIVE` when the walk is over 30 min and driving is faster); legs over 30 min add a warning but the place is kept. A leg with no route at all stays `null` rather than being invented. `transfer` links two cities of a multi-city trip: `TRANSIT`, then `DRIVE`, never walking, planned for tomorrow at 09:00 UTC |
+| `itinerary.controller.ts` | `GET /trips/places/autocomplete?q=` (suggestions for the destination and origin fields: cities, regions and countries, each with a `kind`; biased toward Argentina but not restricted to it), `POST /trips/places/suggest`, `POST /trips/transfer` (`{from, to}`), `POST /trips/itinerary` |
 
 ### The agent's three modules
 
@@ -150,15 +151,16 @@ backend/
 │   │   └── tool.interface.ts      → Tool / ToolDefinition contract
 │   ├── planner/
 │   │   ├── trip-planner.service.ts → budget-aware combinations + alternatives
-│   │   ├── combinations.ts        → cheapest / balanced / best selection
+│   │   ├── combinations.ts        → combinations, cheapest / balanced / best, recommended choices
 │   │   ├── planner.controller.ts  → POST /trips/options
 │   │   └── planner.module.ts
 │   ├── itinerary/
 │   │   ├── geo.ts                 → distance, clustering by day, nearest-neighbor order
 │   │   ├── google-maps.client.ts  → Places + Routes
 │   │   ├── place-suggester.service.ts → top attractions from Google Places
+│   │   ├── attractions.ts         → filters and de-duplicates the suggested places
 │   │   ├── itinerary.service.ts   → days, legs and warnings
-│   │   ├── itinerary.controller.ts → /trips/places/suggest, /trips/itinerary
+│   │   ├── itinerary.controller.ts → /trips/places/*, /trips/transfer, /trips/itinerary
 │   │   └── itinerary.module.ts
 │   ├── agent/
 │   │   ├── llm-provider.ts        → LlmProvider contract (abstract class)
@@ -172,7 +174,8 @@ backend/
 │       ├── weather.tool.ts        → weather tool (hardcoded, no real API)
 │       ├── accommodation.tool.ts  → accommodation tool, real Google Hotels prices
 │       ├── serpapi-hotels-client.ts → SerpApi client (google_hotels engine)
-│       ├── flights.tool.ts        → flights tool, via Google Flights (fli-js)
+│       ├── flights.tool.ts        → flights tool, via Google Flights (fli-js); round trip or open-jaw
+│       ├── airports.ts            → hand-picked airports for international cities (fli-js confuses namesakes)
 │       ├── tool-registry.service.ts
 │       └── tools.module.ts
 └── vendor/
@@ -195,6 +198,7 @@ Environment variables:
 |---|---|---|
 | `SERPAPI_KEY` | — | **Required.** Accommodation. Get one at [serpapi.com](https://serpapi.com/manage-api-key) (free plan with a monthly quota) |
 | `GOOGLE_MAPS_API_KEY` | — | Required for the itinerary: Places API (New) + Routes API |
+| `POSTHOG_KEY` / `POSTHOG_HOST` | — / `https://us.i.posthog.com` | Optional server analytics (`src/analytics/`) |
 | `PORT` | `3001` | Server port |
 | `SERPAPI_BASE_URL` | `https://serpapi.com/search.json` | SerpApi endpoint |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | `/agent` only: where Ollama is |
@@ -215,6 +219,14 @@ npm test   # compiles to .test-dist/ and runs node --test on *.spec.ts
 curl -X POST http://localhost:3001/trips/options \
   -H 'Content-Type: application/json' \
   -d '{"origin":"Buenos Aires","destination":"Bariloche","departure":"2026-12-15","returnDate":"2026-12-22","travelers":2,"maxBudget":2500}'
+```
+
+For several cities send `stops` (the nights must add up to the trip length):
+
+```bash
+curl -X POST http://localhost:3001/trips/options \
+  -H 'Content-Type: application/json' \
+  -d '{"origin":"Buenos Aires","destination":"Rome","stops":[{"city":"Rome","nights":4},{"city":"Florence","nights":3},{"city":"Venice","nights":3}],"departure":"2027-05-10","returnDate":"2027-05-20","travelers":2,"maxBudget":9000}'
 ```
 
 ### Trying the itinerary
