@@ -30,7 +30,7 @@ prices from the APIs. All amounts are in USD.
 
 | File | Responsibility |
 |---|---|
-| `trip-planner.service.ts` | Validates the request (one destination or several `stops` whose nights add up to the trip), searches flights and one hotel list per city in parallel and decides the status (`ok` / `over_budget`). With several cities the flights are open-jaw: into the first city, out of the last. When over budget it still returns the closest options, and tries up to 3 alternatives (one or two fewer nights, one week later; only the week shift with several cities) |
+| `trip-planner.service.ts` | Validates the request (a `scope` of `full` (default), `flights` or `stays`, which skips the searches and the origin that are not needed; one destination or several `stops` whose nights add up to the trip), searches flights and one hotel list per city in parallel and decides the status (`ok` / `over_budget`). With several cities the flights are open-jaw: into the first city, out of the last. When over budget it still returns the closest options, and tries up to 3 alternatives (one or two fewer nights, one week later; only the week shift with several cities) |
 | `combinations.ts` | Pure functions: every flight + one-stay-per-city combination, selection of **cheapest** (lowest total), **balanced** (best quality/price) and **best** (highest quality), and `buildChoices`: the lists of flights and stays offered (8 each) with one recommended in each. Quality = average stay quality (rating + 0.3 × stars) − 0.5 × stops |
 | `planner.controller.ts` | `POST /trips/options` |
 

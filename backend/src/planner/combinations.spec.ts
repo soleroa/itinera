@@ -194,3 +194,39 @@ describe('multi-city combinations', () => {
     assert.ok(pairs.length <= 15 * 4 ** 4);
   });
 });
+
+describe('flights only and stays only', () => {
+  it('flights only: one combination per flight, no stays, total is the flight price', () => {
+    const pairs = allCombinations([flight(300), flight(500, 1)], []);
+    assert.equal(pairs.length, 2);
+    assert.ok(pairs.every((p) => p.accommodations.length === 0));
+    assert.deepEqual(pairs.map((p) => p.total), [300, 500]);
+  });
+
+  it('stays only: no flight, total is the stays added up', () => {
+    const pairs = allCombinations(null, [[hotel(200, 4), hotel(300, 4.5)]]);
+    assert.equal(pairs.length, 2);
+    assert.ok(pairs.every((p) => p.flight === null));
+    assert.deepEqual(pairs.map((p) => p.total), [200, 300]);
+  });
+
+  it('returns nothing when neither flights nor stays are wanted', () => {
+    assert.deepEqual(allCombinations(null, []), []);
+  });
+
+  it('flights only: the nonstop flight is picked even though it costs more', () => {
+    const options = pickOptions(allCombinations([flight(300, 2), flight(350, 0)], []), null);
+    assert.equal(options.find((o) => o.level === 'cheapest')!.flight!.totalPrice, 300);
+    assert.ok(options.some((o) => o.flight!.stops === 0));
+  });
+
+  it('buildChoices: flights only has no stay lists, stays only has no flights', () => {
+    const f = buildChoices([flight(300), flight(400)], [], 1000)!;
+    assert.equal(f.stays.length, 0);
+    assert.equal(f.flights.filter((x) => x.recommended).length, 1);
+
+    const s = buildChoices(null, [[hotel(200, 4), hotel(300, 4.5)]], 1000)!;
+    assert.equal(s.flights.length, 0);
+    assert.equal(s.stays[0].filter((x) => x.recommended).length, 1);
+  });
+});

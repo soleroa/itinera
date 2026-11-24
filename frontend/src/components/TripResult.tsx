@@ -33,7 +33,15 @@ export function TripChosen({
         <div className="flex flex-col gap-4">
           <Eyebrow>Getting there</Eyebrow>
           <h2 className="display max-w-3xl text-5xl sm:text-7xl">
-            {trip.stops.length > 1 ? 'Your flight and stays.' : 'Your flight and stay.'}
+            {trip.scope === 'flights'
+              ? 'Your flight.'
+              : trip.scope === 'stays'
+                ? trip.stops.length > 1
+                  ? 'Your stays.'
+                  : 'Your stay.'
+                : trip.stops.length > 1
+                  ? 'Your flight and stays.'
+                  : 'Your flight and stay.'}
           </h2>
         </div>
         <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
@@ -43,7 +51,7 @@ export function TripChosen({
               <span className="label">{plural(nights, 'night')}</span>
             </div>
             <dl className="flex flex-col gap-2 font-mono text-sm">
-              <Line label="Flight" amount={option.flight.totalPrice} />
+              {option.flight && <Line label="Flight" amount={option.flight.totalPrice} />}
               {option.accommodations.map((stay, i) => (
                 <Line
                   key={`${stay.name}-${i}`}
@@ -58,12 +66,16 @@ export function TripChosen({
             </div>
             <BudgetMeter total={option.total} max={trip.maxBudget} />
             <p className="label normal-case tracking-normal">
-              Food, tickets and local transport are not included.
+              {trip.scope === 'flights'
+                ? 'Accommodation, food, tickets and local transport are not included.'
+                : trip.scope === 'stays'
+                  ? 'Flights, food, tickets and local transport are not included.'
+                  : 'Food, tickets and local transport are not included.'}
             </p>
           </section>
 
           <div className="flex flex-col gap-6">
-            <FlightPass flight={option.flight} trip={trip} />
+            {option.flight && <FlightPass flight={option.flight} trip={trip} />}
             {option.accommodations.map((stay, i) => (
               <StayCard
                 key={`${stay.name}-${i}`}
@@ -90,19 +102,28 @@ export function TripChosen({
 
 /** One-line recap of the chosen flight and stay, with a jump to the full details below. */
 function TripStrip({ trip, option, nights }: { trip: TripRequest; option: TripOption; nights: number }) {
-  const dep = splitDateTime(option.flight.outboundDeparture);
-  const arr = splitDateTime(option.flight.outboundArrival);
+  const flight = option.flight;
+  const dep = flight ? splitDateTime(flight.outboundDeparture) : null;
+  const arr = flight ? splitDateTime(flight.outboundArrival) : null;
+  const hasStay = option.accommodations.length > 0;
+  const columns = `auto ${'1fr '.repeat((flight ? 1 : 0) + (hasStay ? 1 : 0))}auto`;
   return (
-    <section className="animate-rise grid gap-px border border-ink bg-line sm:grid-cols-[auto_1fr_1fr_auto]">
+    <section
+      className="animate-rise grid gap-px border border-ink bg-line sm:[grid-template-columns:var(--cols)]"
+      style={{ '--cols': columns } as React.CSSProperties}
+    >
       <div className="bg-card px-5 py-4">
         <p className="label">{LEVEL_LABEL[option.level]} · {plural(nights, 'night')}</p>
         <p className="display text-4xl tabular-nums">{formatUsd(option.total)}</p>
       </div>
-      <div className="bg-card px-5 py-4">
-        <p className="label">Flight</p>
-        <p className="font-medium">{option.flight.airline}</p>
-        <p className="font-mono text-sm text-ink-3">{dep.date} {dep.time} → {arr.time}</p>
-      </div>
+      {flight && dep && arr && (
+        <div className="bg-card px-5 py-4">
+          <p className="label">Flight</p>
+          <p className="font-medium">{flight.airline}</p>
+          <p className="font-mono text-sm text-ink-3">{dep.date} {dep.time} → {arr.time}</p>
+        </div>
+      )}
+      {hasStay && (
       <div className="bg-card px-5 py-4">
         <p className="label">Stay</p>
         <p className="font-medium">{option.accommodations.map((a) => a.name).join(' · ')}</p>
@@ -113,6 +134,7 @@ function TripStrip({ trip, option, nights }: { trip: TripRequest; option: TripOp
           · {plural(trip.travelers, 'traveler')}
         </p>
       </div>
+      )}
       <a
         href="#trip-details"
         className="flex items-center bg-card px-5 py-4 font-mono text-xs font-medium uppercase tracking-widest text-accent underline decoration-accent/40 underline-offset-4 transition hover:decoration-accent"

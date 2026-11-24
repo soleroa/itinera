@@ -6,6 +6,9 @@ import { BudgetMeter, DestinationBanner, FlightRow, StayRow } from './TripParts'
 
 type Dates = { departure: string; returnDate: string; stops: TripStop[] };
 
+/** What a total covers, for the sentence about being over budget. */
+const SCOPE_NOUN = { full: 'flight + stay', flights: 'flight', stays: 'stay' } as const;
+
 const LEVELS: Record<OptionLevel, { title: string; hint: string }> = {
   cheapest: { title: 'Cheapest', hint: 'The lowest total price' },
   balanced: { title: 'Balanced', hint: 'Best quality for the price' },
@@ -45,16 +48,23 @@ export function TripOptions({
             <p className="display text-7xl tabular-nums sm:text-9xl">{formatUsd(data.shortfall)}</p>
           </div>
           <p className="max-w-xl text-lg">
-            The cheapest flight + stay we found totals <b>{formatUsd(data.cheapest.total)}</b>. You can still pick one of
+            The cheapest {SCOPE_NOUN[trip.scope]} we found totals <b>{formatUsd(data.cheapest.total)}</b>. You can still pick one of
             the options below, raise your budget, or try a nearby variant.
           </p>
         </section>
       ) : (
         <section className="animate-rise flex flex-col gap-4">
-          <Eyebrow>Step 1 of 2 · Getting there</Eyebrow>
-          <h2 className="display max-w-5xl text-5xl sm:text-7xl">First, pick your flight and stay.</h2>
+          <Eyebrow>{trip.scope === 'full' ? 'Step 1 of 2 · Getting there' : 'Your options'}</Eyebrow>
+          <h2 className="display max-w-5xl text-5xl sm:text-7xl">
+            {trip.scope === 'flights'
+              ? 'Pick your flight.'
+              : trip.scope === 'stays'
+                ? 'Pick where to stay.'
+                : 'First, pick your flight and stay.'}
+          </h2>
           <p className="max-w-xl text-ink-2">
-            Real prices, already checked against your budget. Next, we plan your days.
+            Real prices, already checked against your budget.
+            {trip.scope === 'full' ? ' Next, we plan your days.' : ''}
           </p>
         </section>
       )}
@@ -85,7 +95,7 @@ export function TripOptions({
         </div>
       )}
 
-      {data.flights?.length > 0 && data.stays?.length > 0 && (
+      {(data.flights.length > 0 || data.stays.length > 0) && (
         <TripCustomPicker
           flights={data.flights}
           stays={data.stays}
@@ -191,7 +201,9 @@ function OptionCard({
       </div>
 
       <div className="mt-6 flex-1 border-t border-line px-5 pt-5">
-        <FlightRow flight={option.flight} priceLabel={cities.length > 1 ? 'in and out' : 'round trip'} />
+        {option.flight && (
+          <FlightRow flight={option.flight} priceLabel={cities.length > 1 ? 'in and out' : 'round trip'} />
+        )}
         {option.accommodations.map((stay, i) => (
           <StayRow
             key={`${stay.name}-${i}`}

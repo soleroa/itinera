@@ -14,6 +14,7 @@ export async function fetchTripOptions(
     headers: { 'Content-Type': 'application/json', ...analyticsHeaders() },
     body: JSON.stringify({
       origin: trip.origin,
+      scope: trip.scope,
       destination: trip.destination,
       stops: trip.stops,
       departure: trip.departure,

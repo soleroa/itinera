@@ -52,6 +52,34 @@ describe('TripPlannerService.validate', () => {
   });
 });
 
+describe('TripPlannerService.validate: scope', () => {
+  it('defaults to the full trip', () => {
+    assert.equal(planner.validate({ ...base, destination: 'Rome' }).scope, 'full');
+  });
+
+  it('stays only needs no origin', () => {
+    const req = planner.validate({ ...base, origin: undefined, destination: 'Rome', scope: 'stays' });
+    assert.equal(req.scope, 'stays');
+    assert.equal(req.origin, '');
+  });
+
+  it('flights and the full trip still need an origin', () => {
+    for (const scope of ['flights', 'full'] as const) {
+      assert.throws(
+        () => planner.validate({ ...base, origin: '', destination: 'Rome', scope }),
+        BadRequestException,
+      );
+    }
+  });
+
+  it('rejects an unknown scope', () => {
+    assert.throws(
+      () => planner.validate({ ...base, destination: 'Rome', scope: 'hotels' as never }),
+      BadRequestException,
+    );
+  });
+});
+
 describe('stopDates', () => {
   it('chains check-in and check-out across the cities', () => {
     const dates = stopDates({

@@ -39,6 +39,7 @@ export default function App() {
     setPhase({ name: 'loading', trip });
     window.scrollTo({ top: 0 });
     track('trip_submitted', {
+      scope: trip.scope,
       travelers: trip.travelers,
       has_budget: trip.maxBudget !== null,
     });
@@ -66,7 +67,7 @@ export default function App() {
             trip={phase.trip}
             data={phase.data}
             onChoose={(option, dates) => {
-              track('trip_option_chosen', { level: option.level });
+              track('trip_option_chosen', { level: option.level, scope: phase.trip.scope });
               window.scrollTo({ top: 0 });
               const trip = { ...phase.trip, ...dates };
               setPhase({ name: 'chosen', id: saved.create(trip, option), trip, option });
@@ -87,13 +88,16 @@ export default function App() {
         )}
         {phase.name === 'chosen' && (
           <TripChosen trip={phase.trip} option={phase.option} onReset={showTrips} resetLabel="← My trips">
-            <TripItineraries
-              key={phase.id}
-              trip={phase.trip}
-              option={phase.option}
-              plan={saved.trips.find((t) => t.id === phase.id)?.plan}
-              onSave={(index, state) => saved.updateStop(phase.id, index, state)}
-            />
+            {/* The days are planned only for the full trip; flights-only and stays-only searches stop here. */}
+            {phase.trip.scope === 'full' && (
+              <TripItineraries
+                key={phase.id}
+                trip={phase.trip}
+                option={phase.option}
+                plan={saved.trips.find((t) => t.id === phase.id)?.plan}
+                onSave={(index, state) => saved.updateStop(phase.id, index, state)}
+              />
+            )}
           </TripChosen>
         )}
         {phase.name === 'error' && <TripError error={phase.error} onReset={reset} />}

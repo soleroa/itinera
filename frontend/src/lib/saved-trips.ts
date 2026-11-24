@@ -28,7 +28,7 @@ const KEY = 'itinera.savedTrips.v1';
  * so they keep opening.
  */
 function migrate(raw: Record<string, any>): SavedTrip {
-  const trip = { ...raw.trip };
+  const trip = { scope: 'full', ...raw.trip };
   if (!Array.isArray(trip.stops) || trip.stops.length === 0) {
     const nights = Math.max(
       1,

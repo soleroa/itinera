@@ -65,8 +65,9 @@ function SavedTripCard({
   const [confirming, setConfirming] = useState(false);
   const { trip, option } = saved;
   const nights = nightsBetween(trip.departure, trip.returnDate);
+  const full = trip.scope === 'full';
   const built = saved.plan.filter((p) => p.itinerary).length;
-  const itinerary = built > 0 && built === saved.plan.length;
+  const itinerary = full && built > 0 && built === saved.plan.length;
   const placeCount = saved.plan.reduce((sum, p) => sum + (p.places?.length ?? 0), 0);
   const days = saved.plan.reduce((sum, p) => sum + (p.itinerary?.days.length ?? 0), 0);
 
@@ -82,7 +83,7 @@ function SavedTripCard({
             itinerary ? 'bg-mark text-black' : 'border border-ink text-ink-3'
           }`}
         >
-          {itinerary ? 'Itinerary ready' : 'Draft'}
+          {itinerary ? 'Itinerary ready' : full ? 'Draft' : trip.scope === 'flights' ? 'Flights' : 'Stays'}
         </span>
       </header>
 
@@ -92,8 +93,10 @@ function SavedTripCard({
           From {trip.origin} · {plural(nights, 'night')} · {plural(trip.travelers, 'traveler')}
         </p>
         <p className="font-mono text-sm text-ink-3">
-          {formatUsd(option.total)} flight + stay ·{' '}
-          {itinerary ? plural(days, 'day') + ' planned' : plural(placeCount, 'place') + ' picked'}
+          {formatUsd(option.total)} {full ? 'flight + stay' : trip.scope === 'flights' ? 'flights' : 'stays'}
+          {full && (
+            <> · {itinerary ? plural(days, 'day') + ' planned' : plural(placeCount, 'place') + ' picked'}</>
+          )}
         </p>
       </button>
 

@@ -5,15 +5,16 @@ export type Level = 'cheapest' | 'balanced' | 'best';
 
 export interface Combination {
   level: Level;
-  flight: Flight;
-  /** One stay per stop of the trip, in order (a single entry for a one-city trip). */
+  /** Null when the trip is stays only. */
+  flight: Flight | null;
+  /** One stay per stop of the trip, in order (a single entry for a one-city trip); empty when flights only. */
   accommodations: Accommodation[];
   /** Flight + every stay, in USD. */
   total: number;
 }
 
 interface Pair {
-  flight: Flight;
+  flight: Flight | null;
   accommodations: Accommodation[];
   total: number;
   quality: number;
@@ -26,9 +27,9 @@ function stayQuality(hotel: Accommodation): number {
 }
 
 /** Quality of a pair: the average stay quality, penalized by flight stops. */
-export function quality(flight: Flight, hotels: Accommodation[]): number {
-  const avg = hotels.reduce((sum, h) => sum + stayQuality(h), 0) / hotels.length;
-  return avg - flight.stops * 0.5;
+export function quality(flight: Flight | null, hotels: Accommodation[]): number {
+  const avg = hotels.length > 0 ? hotels.reduce((sum, h) => sum + stayQuality(h), 0) / hotels.length : 0;
+  return avg - (flight?.stops ?? 0) * 0.5;
 }
 
 /** How many stays per city take part in the combinations, so they stay few for long trips. */
@@ -36,12 +37,16 @@ function stayPoolSize(stops: number): number {
   return stops <= 1 ? Number.POSITIVE_INFINITY : stops === 2 ? 6 : 4;
 }
 
-/** Every combination of one flight and one stay per city; cheapest first. */
+/**
+ * Every combination of one flight and one stay per city; cheapest first. `flights` null means the
+ * trip is stays only, and no stays (an empty list) means flights only.
+ */
 export function allCombinations(
-  flights: Flight[],
+  flights: Flight[] | null,
   staysByStop: Accommodation[][],
 ): Pair[] {
-  if (staysByStop.length === 0 || staysByStop.some((s) => s.length === 0)) return [];
+  if (flights === null && staysByStop.length === 0) return [];
+  if (staysByStop.some((s) => s.length === 0)) return [];
   const size = stayPoolSize(staysByStop.length);
   const pools = staysByStop.map((stays) =>
     [...stays].sort((a, b) => a.totalPrice - b.totalPrice).slice(0, size),
@@ -52,13 +57,13 @@ export function allCombinations(
   );
 
   const pairs: Pair[] = [];
-  for (const flight of flights) {
+  for (const flight of flights ?? [null]) {
     for (const accommodations of stayCombos) {
       pairs.push({
         flight,
         accommodations,
         total:
-          flight.totalPrice +
+          (flight?.totalPrice ?? 0) +
           accommodations.reduce((sum, h) => sum + h.totalPrice, 0),
         quality: quality(flight, accommodations),
       });
@@ -102,9 +107,9 @@ export function pickOptions(
 export type Choice<T> = T & { recommended: boolean };
 
 export interface Choices {
-  /** Flights to pick from, cheapest first; exactly one is marked `recommended`. */
+  /** Flights to pick from, cheapest first; exactly one is marked `recommended`. Empty when stays only. */
   flights: Choice<Flight>[];
-  /** Per stop of the trip, the stays to pick from, cheapest first; exactly one per stop is `recommended`. */
+  /** Per stop of the trip, the stays to pick from, cheapest first; exactly one per stop is `recommended`. Empty when flights only. */
   stays: Choice<Accommodation>[][];
   /** Why the recommended flight and stays were chosen. */
   recommendationReason: string;
@@ -119,7 +124,7 @@ export const CHOICES_SHOWN = 8;
  * Returns null if there is nothing to combine.
  */
 export function buildChoices(
-  flights: Flight[],
+  flights: Flight[] | null,
   staysByStop: Accommodation[][],
   maxBudget: number | null,
 ): Choices | null {
@@ -142,7 +147,7 @@ export function buildChoices(
   };
 
   return {
-    flights: shown(flights, recommended.flight),
+    flights: flights && recommended.flight ? shown(flights, recommended.flight) : [],
     stays: staysByStop.map((stays, i) => shown(stays, recommended.accommodations[i])),
     recommendationReason: reason,
   };

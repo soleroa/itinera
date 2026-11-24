@@ -4,7 +4,11 @@ export interface TripStop {
   nights: number;
 }
 
+/** What the traveler wants: only flights, only stays, or the full trip with its days. */
+export type TripScope = 'flights' | 'stays' | 'full';
+
 export interface TripRequest {
+  scope: TripScope;
   /** First city (the headline); the full route is in `stops`. */
   destination: string;
   /** Cities in visiting order; the nights add up to the whole trip. At least one. */
@@ -53,8 +57,9 @@ export type Choice<T> = T & { recommended: boolean };
 
 export interface TripOption {
   level: OptionLevel;
-  flight: Flight;
-  /** One stay per stop of the trip, in order. */
+  /** Null when the trip is stays only. */
+  flight: Flight | null;
+  /** One stay per stop of the trip, in order; empty when flights only. */
   accommodations: Accommodation[];
   /** Flight + every stay, in USD. */
   total: number;

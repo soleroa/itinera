@@ -33,8 +33,12 @@ export function DestinationBanner({ trip, compact = false }: { trip: TripRequest
         )}
       </div>
       <dl className="grid grid-cols-2 gap-px border-t border-ink bg-line sm:grid-cols-4">
-        <Meta label="Route" value={`${trip.origin} → ${tripTitle(trip)}`} wide />
-        <Meta label="Dates" value={formatDateRange(trip.departure, trip.returnDate)} />
+        {trip.scope === 'stays' ? (
+          <Meta label="Staying in" value={tripTitle(trip)} wide />
+        ) : (
+          <Meta label="Route" value={`${trip.origin} → ${tripTitle(trip)}`} wide />
+        )}
+        <Meta label={trip.scope === 'stays' ? 'Check-in / out' : 'Dates'} value={formatDateRange(trip.departure, trip.returnDate)} />
         <Meta label="Travelers" value={String(trip.travelers)} />
         <Meta label="Budget" value={trip.maxBudget !== null ? formatUsd(trip.maxBudget) : 'Open'} wide />
       </dl>

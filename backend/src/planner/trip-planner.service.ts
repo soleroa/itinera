@@ -17,7 +17,14 @@ export interface TripStop {
   nights: number;
 }
 
+/** What the traveler wants searched: only flights, only stays, or both (the full trip with its days). */
+export type TripScope = 'flights' | 'stays' | 'full';
+const SCOPES: TripScope[] = ['flights', 'stays', 'full'];
+
 export interface TripRequest {
+  /** Defaults to `full`. */
+  scope: TripScope;
+  /** Where the flight leaves from; not needed (empty) for stays only. */
   origin: string;
   /** First city of the trip (kept for single-city trips and as the headline). */
   destination: string;
@@ -65,8 +72,13 @@ const MAX_ALTERNATIVE_ATTEMPTS = 3;
 const CANDIDATES = 15;
 const MAX_STOPS = 4;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const NOTICE =
-  'The budget was checked against flight + accommodation only. Food, tickets and local transport are not included.';
+const NOTICES: Record<TripScope, string> = {
+  full: 'The budget was checked against flight + accommodation only. Food, tickets and local transport are not included.',
+  flights:
+    'The budget was checked against flights only. Accommodation, food, tickets and local transport are not included.',
+  stays:
+    'The budget was checked against accommodation only. Flights, food, tickets and local transport are not included.',
+};
 
 @Injectable()
 export class TripPlannerService {
@@ -78,11 +90,19 @@ export class TripPlannerService {
   ) {}
 
   validate(body: Partial<TripRequest>): TripRequest {
-    const { origin, departure, returnDate, travelers, maxBudget } = body;
+    const { departure, returnDate, travelers, maxBudget } = body;
+    const scope = body.scope ?? 'full';
+    if (!SCOPES.includes(scope)) {
+      throw new BadRequestException(`scope must be one of: ${SCOPES.join(', ')}.`);
+    }
+    // Stays only needs no origin: nothing flies.
+    const origin = scope === 'stays' ? (body.origin ?? '') : body.origin;
     const rawStops = Array.isArray(body.stops) ? body.stops : [];
     const destination = rawStops.length > 0 ? rawStops[0]?.city : body.destination;
-    if (!origin?.trim() || !destination?.trim()) {
-      throw new BadRequestException('origin and destination are required.');
+    if (!destination?.trim() || (scope !== 'stays' && !origin?.trim())) {
+      throw new BadRequestException(
+        scope === 'stays' ? 'destination is required.' : 'origin and destination are required.',
+      );
     }
     if (
       !departure ||
@@ -106,7 +126,8 @@ export class TripPlannerService {
     }
     const stops = this.validateStops(rawStops, destination, departure, returnDate);
     return {
-      origin: origin.trim(),
+      scope,
+      origin: (origin ?? '').trim(),
       destination: stops[0].city,
       stops,
       departure,
@@ -154,8 +175,12 @@ export class TripPlannerService {
   private async candidates(req: TripRequest) {
     const last = req.stops[req.stops.length - 1];
     const dates = stopDates(req);
+    const wantFlights = req.scope !== 'stays';
+    const wantStays = req.scope !== 'flights';
     const [flights, ...stays] = await Promise.all([
-      this.flights.execute({
+      !wantFlights
+        ? Promise.resolve(null)
+        : this.flights.execute({
         origin: req.origin,
         destination: req.stops[0].city,
         departureDate: req.departure,
@@ -165,7 +190,7 @@ export class TripPlannerService {
         passengers: req.travelers,
         maxResults: CANDIDATES,
       }),
-      ...dates.map((d) =>
+      ...(wantStays ? dates : []).map((d) =>
         this.accommodation.execute({
           city: d.city,
           checkIn: d.checkIn,
@@ -178,7 +203,8 @@ export class TripPlannerService {
 
     // All math is done in USD, which is what the APIs return; it is verified here, not by an LLM.
     const usd = (m: { currency: string }) => m.currency === 'USD';
-    const usdFlights = flights.flights.filter(usd);
+    // Null means flights were not asked for (stays only).
+    const usdFlights = flights ? flights.flights.filter(usd) : null;
     const usdStays = stays.map((s) => s.accommodations.filter(usd));
     return {
       flights: usdFlights,
@@ -191,12 +217,18 @@ export class TripPlannerService {
     const { flights, stays, pairs: candidates } = await this.candidates(req);
     const choices = buildChoices(flights, stays, req.maxBudget);
     if (!choices) {
-      throw new Error('No flights and accommodations with prices to combine.');
+      throw new Error(
+        req.scope === 'flights'
+          ? 'No flights with prices found.'
+          : req.scope === 'stays'
+            ? 'No accommodation with prices found.'
+            : 'No flights and accommodations with prices to combine.',
+      );
     }
 
     const options = pickOptions(candidates, req.maxBudget);
     if (options.length > 0) {
-      return { status: 'ok', options, ...choices, notice: NOTICE };
+      return { status: 'ok', options, ...choices, notice: NOTICES[req.scope] };
     }
 
     const cheapest: Combination = { level: 'cheapest', ...candidates[0] };
@@ -208,7 +240,7 @@ export class TripPlannerService {
       cheapest,
       shortfall: cheapest.total - req.maxBudget!,
       alternatives: await this.alternatives(req, req.maxBudget!),
-      notice: NOTICE,
+      notice: NOTICES[req.scope],
     };
   }
 

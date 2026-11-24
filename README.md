@@ -17,6 +17,10 @@ closest options, tells you by how much you are over and suggests cheaper variant
 
 ## What it does today
 
+- **Pick what you need**: the full trip (flight, stay and the days), **only flights** or
+  **only stays**. Flights-only needs no hotel searches and stays-only needs no origin; the
+  days are planned only for the full trip. The budget is checked against what you asked for.
+
 - Builds a **day-by-day itinerary**: places are suggested from Google Places'
   top-rated attractions for the destination (or typed by you). Suggestions are filtered
   in code: no agencies or stations, rating of 4.0+ with at least 50 reviews, and no repeats
@@ -52,7 +56,7 @@ closest options, tells you by how much you are over and suggests cheaper variant
 
 ```
 Form (React)
-   │  POST /trips/options  { origin, destination, stops?, departure, returnDate, travelers, maxBudget }
+   │  POST /trips/options  { scope?, origin, destination, stops?, departure, returnDate, travelers, maxBudget }
    ▼
 TripPlannerService (NestJS, no LLM)
    ├─ FlightsTool        → Google Flights (fli-js)      ┐ in parallel

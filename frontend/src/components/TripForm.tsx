@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import type { TripRequest, TripStop } from '../types';
+import type { TripRequest, TripScope, TripStop } from '../types';
 import { MinusIcon, PlusIcon } from './Icons';
 import type { CitySuggestion } from '../lib/places-client';
 import { PlaceSearch } from './PlaceSearch';
@@ -19,6 +19,12 @@ type Draft = {
 
 const DESTINATIONS = ['Bariloche', 'Mendoza', 'Salta', 'Ushuaia'];
 const MAX_STOPS = 4;
+
+const SCOPES: Array<{ id: TripScope; title: string; hint: string }> = [
+  { id: 'full', title: 'Full trip', hint: 'Flight, stay and the days' },
+  { id: 'flights', title: 'Flights', hint: 'Only the flight' },
+  { id: 'stays', title: 'Stays', hint: 'Only where to sleep' },
+];
 
 /** `total` nights shared as evenly as possible; the first cities get the extra ones. */
 function evenSplit(total: number, count: number): number[] {
@@ -53,6 +59,10 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
     origin: null,
   });
   const isBroad = (kind: CitySuggestion['kind'] | null) => kind === 'country' || kind === 'region';
+  const [scope, setScope] = useState<TripScope>('full');
+  const needsOrigin = scope !== 'stays';
+  // Flights are for one destination; stays and the full trip can chain several cities.
+  const maxStops = scope === 'flights' ? 1 : MAX_STOPS;
   // True once the traveler edited the nights by hand; until then they are split evenly.
   const [manualNights, setManualNights] = useState(false);
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
@@ -68,8 +78,16 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
   };
   const addCity = (city: string) => {
     const name = city.trim();
-    if (!name || cities.some((c) => c.toLowerCase() === name.toLowerCase()) || cities.length >= MAX_STOPS) return;
+    if (!name || cities.some((c) => c.toLowerCase() === name.toLowerCase())) return;
+    // Flights have a single destination: choosing another city replaces it.
+    if (maxStops === 1) return setStops([{ city: name, nights: 0 }]);
+    if (cities.length >= maxStops) return;
     setStops([...draft.stops, { city: name, nights: 0 }]);
+  };
+  const chooseScope = (next: TripScope) => {
+    setScope(next);
+    // Flights go to one city only: keep the first.
+    if (next === 'flights' && draft.stops.length > 1) setStops(draft.stops.slice(0, 1));
   };
   const removeCity = (index: number) => setStops(draft.stops.filter((_, i) => i !== index));
   const moveUp = (index: number) => {
@@ -106,14 +124,16 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
       ? `Pick a city in ${draft.destination}`
       : multi && typed && !isBroad(kinds.destination)
         ? `Press Add to include "${typed}", or clear it`
-        : !draft.origin.trim()
+        : needsOrigin && !draft.origin.trim()
           ? 'Add where you fly from'
-          : isBroad(kinds.origin)
+          : needsOrigin && isBroad(kinds.origin)
             ? `Pick the city you fly from in ${draft.origin}`
             : draft.departure === '' || draft.returnDate === ''
               ? 'Pick your dates'
               : !datesOk
-                ? 'The return must be after the departure'
+                ? scope === 'stays'
+                  ? 'Check-out must be after check-in'
+                  : 'The return must be after the departure'
                 : multi && draft.stops.length > totalNights
                   ? 'You need at least one night in every city'
                   : nightsOff
@@ -129,9 +149,10 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
     if (missing) return;
     const stops = multi ? draft.stops : [{ city: typed, nights: totalNights }];
     onSubmit({
+      scope,
       destination: stops[0].city,
       stops,
-      origin: draft.origin.trim(),
+      origin: needsOrigin ? draft.origin.trim() : '',
       departure: draft.departure,
       returnDate: draft.returnDate,
       travelers: draft.travelers,
@@ -142,11 +163,38 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
   return (
     <form onSubmit={handleSubmit} className="hard-shadow border border-ink bg-card">
       <div className="flex items-center justify-between border-b border-ink bg-ink px-5 py-2.5 text-paper">
-        <span className="label text-paper">New itinerary</span>
-        <span className="label text-paper/70">6 quick questions</span>
+        <span className="label text-paper">New trip</span>
+        <span className="label text-paper/70">{needsOrigin ? 6 : 5} quick questions</span>
       </div>
 
-      <Field n="01" label={multi ? 'Where to · your route' : 'Where to'} htmlFor="destination">
+      <div className="border-b border-line px-5 py-4">
+        <p className="label mb-2">What do you need?</p>
+        <div role="radiogroup" aria-label="What do you need?" className="grid grid-cols-3 border border-ink">
+          {SCOPES.map(({ id, title, hint }) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={scope === id}
+              onClick={() => chooseScope(id)}
+              className={`flex flex-col gap-0.5 border-r border-ink px-3 py-2 text-left transition last:border-r-0 ${
+                scope === id ? 'bg-ink text-paper' : 'hover:bg-paper-2'
+              }`}
+            >
+              <span className="font-display text-lg font-semibold leading-tight tracking-tight">{title}</span>
+              <span className={`hidden font-mono text-[11px] sm:block ${scope === id ? 'text-paper/70' : 'text-ink-3'}`}>
+                {hint}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Field
+        n="01"
+        label={scope === 'stays' ? (multi ? 'Where to stay · your route' : 'Where to stay') : multi && maxStops > 1 ? 'Where to · your route' : 'Where to'}
+        htmlFor="destination"
+      >
         {multi && (
           <ol className="mb-3 flex flex-col border border-ink">
             {draft.stops.map((stop, i) => (
@@ -197,11 +245,11 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
               onKind={(kind) => setKinds((k) => ({ ...k, destination: kind }))}
               onSelectCity={addCity}
               addedCities={cities}
-              placeholder={multi ? 'Add another city' : 'Search a city or a country, e.g. Italy'}
+              placeholder={multi ? (maxStops === 1 ? 'Search another city to replace it' : 'Add another city') : 'Search a city or a country, e.g. Italy'}
               className={input}
             />
           </div>
-          {multi && typed && !isBroad(kinds.destination) && draft.stops.length < MAX_STOPS && (
+          {multi && typed && !isBroad(kinds.destination) && (draft.stops.length < maxStops || maxStops === 1) && (
             <button
               type="button"
               onClick={() => {
@@ -231,11 +279,15 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
         {multi && (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 font-mono text-xs text-ink-3">
             <span>
-              {draft.stops.length >= MAX_STOPS
-                ? `Up to ${MAX_STOPS} cities per trip.`
-                : draft.stops.length === 1
-                  ? 'Add more cities to visit several places on one trip.'
-                  : 'Flights go into the first city and out of the last one.'}
+              {maxStops === 1
+                ? 'Flights search one destination, round trip.'
+                : draft.stops.length >= maxStops
+                  ? `Up to ${maxStops} cities per trip.`
+                  : draft.stops.length === 1
+                    ? 'Add more cities to visit several places on one trip.'
+                    : scope === 'stays'
+                      ? 'One stay is searched in each city.'
+                      : 'Flights go into the first city and out of the last one.'}
             </span>
             {draft.stops.length > 1 && datesOk && (
               <button
@@ -250,19 +302,21 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
         )}
       </Field>
 
-      <Field n="02" label="Flying from" htmlFor="origin">
-        <PlaceSearch
-          id="origin"
-          value={draft.origin}
-          onChange={(v) => update('origin', v)}
-          onKind={(kind) => setKinds((k) => ({ ...k, origin: kind }))}
-          placeholder="Search a city, e.g. Buenos Aires"
-          className={input}
-        />
-      </Field>
+      {needsOrigin && (
+        <Field n="02" label="Flying from" htmlFor="origin">
+          <PlaceSearch
+            id="origin"
+            value={draft.origin}
+            onChange={(v) => update('origin', v)}
+            onKind={(kind) => setKinds((k) => ({ ...k, origin: kind }))}
+            placeholder="Search a city, e.g. Buenos Aires"
+            className={input}
+          />
+        </Field>
+      )}
 
       <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-line">
-        <Field n="03" label="Depart" htmlFor="departure">
+        <Field n={needsOrigin ? '03' : '02'} label={scope === 'stays' ? 'Check-in' : 'Depart'} htmlFor="departure">
           <input
             id="departure"
             type="date"
@@ -272,7 +326,7 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
             className={`${input} font-mono text-xl`}
           />
         </Field>
-        <Field n="04" label="Return" htmlFor="return">
+        <Field n={needsOrigin ? '04' : '03'} label={scope === 'stays' ? 'Check-out' : 'Return'} htmlFor="return">
           <input
             id="return"
             type="date"
@@ -285,7 +339,7 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
       </div>
 
       <div className="grid sm:grid-cols-[auto_1fr] sm:divide-x sm:divide-line">
-        <Field n="05" label="Travelers">
+        <Field n={needsOrigin ? '05' : '04'} label="Travelers">
           <div className="flex items-center gap-3 pt-1">
             <Stepper label="Fewer travelers" disabled={draft.travelers <= 1} onClick={() => update('travelers', draft.travelers - 1)}>
               <MinusIcon width={16} height={16} />
@@ -298,7 +352,11 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
             </Stepper>
           </div>
         </Field>
-        <Field n="06" label="Budget for flight + stay (USD)" htmlFor="max-budget">
+        <Field
+          n={needsOrigin ? '06' : '05'}
+          label={`Budget for ${scope === 'flights' ? 'flights' : scope === 'stays' ? 'stays' : 'flight + stay'} (USD)`}
+          htmlFor="max-budget"
+        >
           <div className="flex items-baseline gap-1">
             <span className="font-display text-3xl font-semibold text-ink-3">$</span>
             <input
@@ -321,11 +379,16 @@ export function TripForm({ onSubmit }: { onSubmit: (trip: TripRequest) => void }
           disabled={missing !== null}
           className="group flex w-full items-center justify-between bg-ink px-5 py-4 text-left font-display text-2xl font-semibold tracking-tight text-paper transition hover:bg-accent hover:text-on-accent disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-ink disabled:hover:text-paper"
         >
-          Plan my trip
+          {scope === 'flights' ? 'Search flights' : scope === 'stays' ? 'Search stays' : 'Plan my trip'}
           <span aria-hidden="true" className="font-mono text-xl transition group-hover:translate-x-1">→</span>
         </button>
         <p className="label min-h-4 normal-case tracking-normal" role="status">
-          {missing ?? 'Budget is optional. Next you pick flight + stay, then we plan the days.'}
+          {missing ??
+            (scope === 'flights'
+              ? 'Budget is optional. Next you pick your flight.'
+              : scope === 'stays'
+                ? 'Budget is optional. Next you pick where to stay.'
+                : 'Budget is optional. Next you pick flight + stay, then we plan the days.')}
         </p>
       </div>
     </form>
