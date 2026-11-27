@@ -11,7 +11,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "description": "",
   "dependencies": {
     "@nestjs/common": "^11.1.28",

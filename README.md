@@ -1,5 +1,7 @@
 # Itinera
 
+**Itinerary-first trip planner: the budget is a constraint, not the headline.**
+
 Itinerary planner. Tell it where you are going, when and with what budget, and it plans
 the whole trip **day by day**: the places to see, in a sensible order, and exactly how to
 get between them. It also finds **real flights and a hotel** that fit your budget in USD.
